@@ -23,6 +23,12 @@
       <height>571</height>
      </rect>
     </property>
+    <property name="minimumSize">
+     <size>
+      <width>871</width>
+      <height>571</height>
+     </size>
+    </property>
     <property name="currentIndex">
      <number>0</number>
     </property>
@@ -48,7 +54,7 @@
          <height>531</height>
         </rect>
        </property>
-       <layout class="QHBoxLayout" name="horizontalLayout">
+       <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,1">
         <item>
          <layout class="QVBoxLayout" name="verticalLayout">
           <item>
@@ -99,7 +105,7 @@
                </widget>
               </item>
               <item row="1" column="1">
-               <widget class="QLineEdit" name="x_start"/>
+               <widget class="QLineEdit" name="LE_x_start"/>
               </item>
               <item row="0" column="0">
                <widget class="QLabel" name="label_4">
@@ -123,19 +129,19 @@
                </widget>
               </item>
               <item row="2" column="2">
-               <widget class="QLineEdit" name="y_end"/>
+               <widget class="QLineEdit" name="LE_y_stop"/>
               </item>
               <item row="2" column="1">
-               <widget class="QLineEdit" name="y_start"/>
+               <widget class="QLineEdit" name="LE_y_start"/>
               </item>
               <item row="1" column="2">
-               <widget class="QLineEdit" name="x_end"/>
+               <widget class="QLineEdit" name="LE_x_stop"/>
               </item>
               <item row="2" column="3">
-               <widget class="QLineEdit" name="y_step"/>
+               <widget class="QLineEdit" name="LE_y_step"/>
               </item>
               <item row="1" column="3">
-               <widget class="QLineEdit" name="x_step"/>
+               <widget class="QLineEdit" name="LE_x_step"/>
               </item>
              </layout>
             </widget>
@@ -157,7 +163,7 @@
                </widget>
               </item>
               <item row="0" column="1">
-               <widget class="QLineEdit" name="pmt_exposure_time_in_ms"/>
+               <widget class="QLineEdit" name="LE_pmt_exposure_time_in_ms"/>
               </item>
              </layout>
             </widget>
