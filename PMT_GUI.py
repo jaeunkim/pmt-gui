@@ -206,6 +206,8 @@ class ScanningThread(QThread):
         self.x_pos = -1
         self.y_pos = -1
         self.exposure_time = -1
+        self.cond = QWaitCondition()
+        self.mutex = QMutex()
         
         # hardware info
         self.x_motor_serno = x_motor_serno
@@ -230,18 +232,24 @@ class ScanningThread(QThread):
         
     def run(self):
         while self.running_flag:
-            if self.scan_todo_flag:
+            self.mutex.lock()
+            
+            if not self.scan_todo_flag:  # no job to do
+                self.cond.wait(self.mutex)  # wait for a job to do
+            else:  # there's a job to do
                 self.move_to_requested_position()  # should be atomic
                 my_count = self.pmt.PMT_count_measure()  # should be atomic
                 self.scan_todo_flag = False  # job done
                 self.scan_result.emit(self.x_pos, self.y_pos, self.exposure_time, my_count)
-            time.sleep(0.2)
-    
+           
+            self.mutex.unlock()
+            
     def register_request(self, x_pos, y_pos, exposure_time):
         self.x_pos = x_pos
         self.y_pos = y_pos
         self.exposure_time = exposure_time
         self.scan_todo_flag = True
+        self.cond.wakeAll()
         print("registered on thread", x_pos, y_pos, exposure_time)
 
     def move_to_requested_position(self):
