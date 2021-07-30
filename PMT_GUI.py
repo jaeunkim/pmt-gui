@@ -111,7 +111,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
     def receive_result(self, x_pos, y_pos, exposure_time, pmt_count):
         print("entered receive_result ", x_pos, y_pos, exposure_time, pmt_count)
         # save result
-        df = pd.DataFrame([x_pos, y_pos, exposure_time, pmt_count])
+        df = pd.DataFrame([x_pos, y_pos, exposure_time, pmt_count]).transpose()
         if self.save_file is not None:
             with open(self.save_file, 'a') as f:
                 df.to_csv(f, index=False, header=False, line_terminator='\n')
