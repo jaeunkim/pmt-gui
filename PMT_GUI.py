@@ -104,8 +104,15 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         calculates the scan position based on self.num_points_done
         """
         x_pos = self.x_pos_list[self.num_points_done % self.x_num]
-        y_pos = self.y_pos_list[self.num_points_done // self.x_num] 
+        y_pos = self.y_pos_list[self.num_points_done // self.x_num]
         exposure_time = float(self.LE_pmt_exposure_time_in_ms.text())
+        
+        # zigzag scanning to minimize backlash
+        if y_pos % 2 == 1:  # for even-numbered rows
+            original_index = self.num_points_done % self.x_num
+            new_index = -1 * (original_index + 1)  # counting from the end of the list
+            x_pos = self.x_pos_list[new_index]  # overwriting x_pos
+            
         self.scan_request.emit(x_pos, y_pos, exposure_time)
     
     def receive_result(self, x_pos, y_pos, exposure_time, pmt_count):
