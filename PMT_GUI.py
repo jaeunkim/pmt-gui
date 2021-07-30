@@ -116,13 +116,8 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.scan_request.emit(x_pos, y_pos, exposure_time)
     
     def receive_result(self, x_pos, y_pos, exposure_time, pmt_count):
-        print("entered receive_result ", x_pos, y_pos, exposure_time, pmt_count)
-        # save result
-        df = pd.DataFrame([x_pos, y_pos, exposure_time, pmt_count]).transpose()
-        if self.save_file is not None:
-            with open(self.save_file, 'a') as f:
-                df.to_csv(f, index=False, header=False, line_terminator='\n')
-        
+        # print("entered receive_result ", x_pos, y_pos, exposure_time, pmt_count)
+
         # update GUI (image & progress)
         x_index = np.where(self.x_pos_list == x_pos)[0][0]
         y_index = np.where(self.y_pos_list == y_pos)[0][0]
@@ -138,7 +133,24 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
             self.send_request()
         else:  # if scanning is done
             self.scanning_thread.running_flag = False
+        
+        # save result only if a line is finished
+        if x_index == len(self.x_pos_list) - 1:  # end of a line
+            # put data into the correct shape
+            x_pos_list_np = np.array(self.x_pos_list)
+            y_pos_list_np = np.repeat(y_pos, len(self.x_pos_list))  # expanding a number to a list
+            exposure_time_list_np = np.repeat(exposure_time, len(self.x_pos_list))
+            pmt_count_list_np = self.image[:,y_index]
             
+            # create dataframe & save
+            data_chunk_to_append = np.stack([x_pos_list_np, y_pos_list_np, 
+                                             exposure_time_list_np, pmt_count_list_np])
+            df = pd.DataFrame(data_chunk_to_append).transpose()
+    
+            if self.save_file is not None:
+                with open(self.save_file, 'a') as f:
+                    df.to_csv(f, index=False, header=False, line_terminator='\n')
+        
     def select_save_file(self):
         # dialog to choose a file
         options = QFileDialog.Options()
