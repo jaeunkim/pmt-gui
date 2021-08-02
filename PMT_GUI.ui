@@ -67,7 +67,7 @@
          </layout>
         </item>
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout_2" stretch="4,4,4,0,1,1,1">
+         <layout class="QVBoxLayout" name="verticalLayout_2" stretch="5,4,3,0,1,1,1">
           <item>
            <widget class="QGroupBox" name="groupBox">
             <property name="title">
@@ -151,7 +151,7 @@
                <x>29</x>
                <y>105</y>
                <width>371</width>
-               <height>22</height>
+               <height>44</height>
               </rect>
              </property>
              <layout class="QFormLayout" name="formLayout_3">
@@ -164,6 +164,13 @@
               </item>
               <item row="0" column="1">
                <widget class="QLineEdit" name="LE_pmt_exposure_time_in_ms"/>
+              </item>
+              <item row="1" column="0" colspan="2">
+               <widget class="QCheckBox" name="CB_auto_go_to_max">
+                <property name="text">
+                 <string>Go to the max position after the scanning is finished</string>
+                </property>
+               </widget>
               </item>
              </layout>
             </widget>
@@ -272,7 +279,7 @@
              <property name="geometry">
               <rect>
                <x>30</x>
-               <y>30</y>
+               <y>10</y>
                <width>361</width>
                <height>81</height>
               </rect>

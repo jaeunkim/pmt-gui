@@ -42,7 +42,7 @@ Ui_Form, QtBaseClass = uic.loadUiType(uifile)
 class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
     scan_request = pyqtSignal(float, float, float)
     
-    def __init__(self, window_title="", parent=None):
+    def __init__(self, window_title="", parent=None, debug=False):
         QtWidgets.QMainWindow.__init__(self, parent)
         self.setupUi(self)
         self.setWindowTitle(window_title)
@@ -55,6 +55,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.BTN_select_save_file.clicked.connect(self.select_save_file)
         self.BTN_stop_scanning.clicked.connect(self.stop_scanning)
         self.BTN_pause_or_resume_scanning.clicked.connect(self.pause_or_resume_scanning)
+        self.BTN_go_to_max.connect(self.go_to_max)
 
         # Internal 
         self.x_pos_list = []
@@ -64,6 +65,8 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.latest_count = -1
         self.scan_ongoing_flag = True  # pause/resume scanning
         self.mutex = QMutex()  # to avoid weird situations regarding pause
+        self.gotomax_rescan_range = 5  # tile size to rescan in self.go_to_max()
+        self.currently_rescanning = False  # true during gotomax operation
         
         # Setup: scanning thread
         self.scanning_thread = ScanningThread(x_motor_serno = "27002644", y_motor_serno = "27002621", fpga_com_port = "COM7")
@@ -119,8 +122,8 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.scan_request.emit(x_pos, y_pos, exposure_time)
     
     def receive_result(self, x_pos, y_pos, exposure_time, pmt_count):
-        # print("entered receive_result ", x_pos, y_pos, exposure_time, pmt_count)
         self.mutex.lock()
+        print("entered receive_result ", x_pos, y_pos, exposure_time, pmt_count, "self.num_points_done:", self.num_points_done)
         
         # update GUI (image & progress)
         x_index = np.where(self.x_pos_list == x_pos)[0][0]
@@ -133,13 +136,19 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.update_progress_label()
         
         # send new request
-        if self.num_points_done != self.x_num * self.y_num:  # if scanning not finished
+        if self.num_points_done < self.x_num * self.y_num:  # if scanning not finished
             # check if scanning is not paused
             if self.scan_ongoing_flag:
                 self.send_request()
         else:  # if scanning is done
             self.scanning_thread.running_flag = False
-        
+            if self.CB_auto_go_to_max.isChecked():
+                self.go_to_max()
+            if self.currently_rescanning:  # rescanning phase in gotomax is finished
+                true_x_argmax, true_y_argmax = np.unravel_index(np.argmax(self.image, axis=None), self.image.shape)
+                # sending motors to max position by making a measurement at that position
+                self.scan_request.emit(self.x_pos_list[true_x_argmax], self.y_pos_list[true_y_argmax], self.exposure_time)
+       
         # save result only if a line is finished
         if x_index == len(self.x_pos_list) - 1:  # end of a line
             # put data into the correct shape
@@ -195,7 +204,49 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.ax.imshow(self.image)
         self.canvas.draw()
     
+    def go_to_max(self):
+        # define a small patch around the max position to rescan 
+        max_x_index, max_y_index = np.unravel_index(np.argmax(self.image, axis=None), self.image.shape)
+        clipped_x_rescan_index = np.clip([max_x_index - self.gotomax_rescan_range//2, max_x_index + self.gotomax_rescan_range//2], 0, self.x_num-1)
+        clipped_y_rescan_index = np.clip([max_y_index - self.gotomax_rescan_range//2, max_y_index + self.gotomax_rescan_range//2], 0, self.y_num-1)
+        print(max_x_index, max_y_index, clipped_x_rescan_index, clipped_y_rescan_index)
+        rescan_x_pos_list = self.x_pos_list[clipped_x_rescan_range[0]:clipped_x_rescan_range[1]]
+        rescan_y_pos_list = self.x_pos_list[clipped_y_rescan_range[0]:clipped_y_rescan_range[1]]
+        
+        # create a new savefile
+        if self.save_file is not None:
+            new_file = self.save_file[:-4] + "_rescan_around_max.csv"
+            with open(new_file, 'w') as f:
+                df = pd.DataFrame("auto-generatred file to store measurements during go_to_max()")
+                df.to_csv(f, index=False, header=False, line_terminator='\n')
+                self.save_file = new_file
+                
+        # start rescanning
+        self.currently_rescanning = True
+        self.x_pos_list = rescan_x_pos_list
+        self.y_pos_list = rescan_y_pos_list
+        self.pmt_exposure_time_in_ms = self.LE_pmt_exposure_time_in_ms.text()
+        print("REscanning for", self.x_pos_list, self.y_pos_list, self.pmt_exposure_time_in_ms)
+        
+        # numpy array to store scanned image
+        self.x_num = len(self.x_pos_list)
+        self.y_num = len(self.y_pos_list)
+        self.image = np.zeros((self.x_num, self.y_num))
+        
+        # update scan_progress labels
+        self.num_points_done = 0
+        self.latest_count = 0
+        self.update_progress_label()
+        self.LBL_total_points.setText(str(self.x_num * self.y_num))
+        
+        # initiate scanning
+        if not self.scanning_thread.running_flag:
+            self.scanning_thread.running_flag = True
+            self.scanning_thread.start()
+        self.send_request()
+    
     def pause_or_resume_scanning(self):
+        print("entered pause_or_resume_scanning()")
         if self.scan_ongoing_flag:  # scanning -> pause
             self.scan_ongoing_flag = False
             self.BTN_pause_or_resume_scanning.setText("Resume Scanning")
