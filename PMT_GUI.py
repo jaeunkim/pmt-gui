@@ -42,7 +42,7 @@ Ui_Form, QtBaseClass = uic.loadUiType(uifile)
 class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
     scan_request = pyqtSignal(float, float, float)
     
-    def __init__(self, window_title="", parent=None, debug=False):
+    def __init__(self, window_title="", parent=None):
         QtWidgets.QMainWindow.__init__(self, parent)
         self.setupUi(self)
         self.setWindowTitle(window_title)
