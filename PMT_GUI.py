@@ -81,9 +81,9 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
     def start_scanning(self):
         # read scan settings
         self.x_pos_list = np.arange(float(self.LE_x_start.text()), 
-                                       float(self.LE_x_stop.text()), float(self.LE_x_step.text()))
+                                       float(self.LE_x_stop.text())+float(self.LE_x_step.text()), float(self.LE_x_step.text()))
         self.y_pos_list = np.arange(float(self.LE_y_start.text()), 
-                                       float(self.LE_y_stop.text()), float(self.LE_y_step.text()))
+                                       float(self.LE_y_stop.text())+float(self.LE_y_step.text()), float(self.LE_y_step.text()))
         self.pmt_exposure_time_in_ms = self.LE_pmt_exposure_time_in_ms.text()
         print("scanning for", self.x_pos_list, self.y_pos_list, self.pmt_exposure_time_in_ms)
         
