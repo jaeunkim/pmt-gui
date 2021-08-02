@@ -54,6 +54,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.BTN_start_scanning.clicked.connect(self.start_scanning)
         self.BTN_select_save_file.clicked.connect(self.select_save_file)
         self.BTN_stop_scanning.clicked.connect(self.stop_scanning)
+        self.BTN_pause_or_resume_scanning.clicked.connect(self.pause_or_resume_scanning)
 
         # Internal 
         self.x_pos_list = []
@@ -61,6 +62,8 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.pmt_exposure_time_in_ms = -1
         self.num_points_done = -1
         self.latest_count = -1
+        self.scan_ongoing_flag = True  # pause/resume scanning
+        self.mutex = QMutex()  # to avoid weird situations regarding pause
         
         # Setup: scanning thread
         self.scanning_thread = ScanningThread(x_motor_serno = "27002644", y_motor_serno = "27002621", fpga_com_port = "COM7")
@@ -117,7 +120,8 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
     
     def receive_result(self, x_pos, y_pos, exposure_time, pmt_count):
         # print("entered receive_result ", x_pos, y_pos, exposure_time, pmt_count)
-
+        self.mutex.lock()
+        
         # update GUI (image & progress)
         x_index = np.where(self.x_pos_list == x_pos)[0][0]
         y_index = np.where(self.y_pos_list == y_pos)[0][0]
@@ -128,9 +132,11 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.num_points_done += 1
         self.update_progress_label()
         
-        # send new request 
+        # send new request
         if self.num_points_done != self.x_num * self.y_num:  # if scanning not finished
-            self.send_request()
+            # check if scanning is not paused
+            if self.scan_ongoing_flag:
+                self.send_request()
         else:  # if scanning is done
             self.scanning_thread.running_flag = False
         
@@ -151,6 +157,8 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
                 with open(self.save_file, 'a') as f:
                     df.to_csv(f, index=False, header=False, line_terminator='\n')
         
+        self.mutex.unlock()
+        
     def select_save_file(self):
         # dialog to choose a file
         options = QFileDialog.Options()
@@ -168,10 +176,10 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         canvas = FigureCanvas(fig)
         toolbar = NavigationToolbar(canvas, self)
         
-        layout = QVBoxLayout()
         layout.addWidget(toolbar)
         layout.addWidget(canvas)
         frame.setLayout(layout)
+        layout = QVBoxLayout()
         
         return toolbar, ax, canvas
     
@@ -187,8 +195,18 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.ax.imshow(self.image)
         self.canvas.draw()
     
+    def pause_or_resume_scanning(self):
+        if self.scan_ongoing_flag:  # scanning -> pause
+            self.scan_ongoing_flag = False
+            self.BTN_pause_or_resume_scanning.setText("Resume Scanning")
+        else:  # pause -> resume
+            self.scan_ongoing_flag = True
+            self.BTN_pause_or_resume_scanning.setText("Pause Scanning")
+            self.send_request()
+        
     def stop_scanning(self):
         self.scanning_thread.stop_thread_and_clean_up_hardware()
+
 
 class ScanningThread(QThread):
     """

@@ -67,7 +67,7 @@
          </layout>
         </item>
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout_2" stretch="4,4,4,1,1,1">
+         <layout class="QVBoxLayout" name="verticalLayout_2" stretch="4,4,4,0,1,1,1">
           <item>
            <widget class="QGroupBox" name="groupBox">
             <property name="title">
@@ -314,6 +314,13 @@
            </widget>
           </item>
           <item>
+           <widget class="QPushButton" name="BTN_pause_or_resume_scanning">
+            <property name="text">
+             <string>Pause Scanning</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QPushButton" name="BTN_start_scanning">
             <property name="text">
              <string>Start Scanning</string>
@@ -323,7 +330,7 @@
           <item>
            <widget class="QPushButton" name="BTN_stop_scanning">
             <property name="text">
-             <string>Stop Scanning (Release FPGA)</string>
+             <string>Release Hardwares (FPGA, Motor Controllers)</string>
             </property>
            </widget>
           </item>
