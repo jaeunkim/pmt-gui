@@ -1,41 +1,42 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Jul 31 22:44:57 2019
-
-@author: seongmyeongseok
+Modified from PMT_v2_00 (by seongmyeongseok)
+Modified on Tue Aug 3rd 14:39:30 2021
+Modified by Jaeun Kim
 """
+
 import sys
-sys.path.append("Q://Experiment_Scripts/Chamber_4G_SNU/SecularFreq/")
+sys.path.append("Q:/Experiment_Scripts/Chamber_1S_SNU/Sequencer Library/v4_01/python/")
 from SequencerProgram_v1_07 import SequencerProgram, reg
-import HardwareDefinition_SNU_v4_01 as hd
+import HardwareDefinition_1S_test as hd
 import SequencerUtility_v1_01 as su
 from ArtyS7_v1_02 import ArtyS7
 import numpy as np
 import time
 
 class PMT():
-    def __init__(self, 
-                 N_500us = 2,
-                 T_500us = 50000-3-2,
-                 max_run_count = 100,
-                 port = 'COM11'
-                 ):
-        self.N_500us = N_500us
-        self.T_500us = T_500us
-        self.max_run_count = max_run_count
+    def __init__(self, port = 'COM7'):
         self.port = port
         self.run_counter = reg[0]
         self.wait_counter = reg[1]
         self.PMT_sp= SequencerProgram()
-        self.setup_PMT_sp()
         
-    
+        # scanning thread should call this function AFTER scan settings are given by the user
+        # self.setup_PMT_sp() 
+        
     #  def __del__(self):
     #    self.sequencer.close
 
-    def setup_PMT_sp(self):
-        #Reset run_numb0.41er
-        #print("setup_PMT")
+    def setup_PMT_sp(self, 
+                     N_1us = 2,
+                     T_1us = 100-3-2,
+                     num_run = 1,
+                     ):
+        print("setup_PMT_sp: ", N_1us, T_1us, num_run)
+        self.N_1us = N_1us
+        self.T_1us = T_1us
+        self.num_run = num_run
+        
         self.PMT_sp.load_immediate(self.run_counter, 0, 'reg[0] will be used for run number')
         
         # Start of the repeating part
@@ -47,9 +48,9 @@ class PMT():
         
         self.PMT_sp.repeat_wait = \
         \
-        self.PMT_sp.wait_n_clocks(self.T_500us, 'Wait for 50000 * 10 ns unconditionally')
+        self.PMT_sp.wait_n_clocks(self.T_1us, 'Wait for 100 * 10 ns unconditionally')
         self.PMT_sp.add(self.wait_counter, self.wait_counter, 1)
-        self.PMT_sp.branch_if_less_than('repeat_wait', self.wait_counter, self.N_500us)
+        self.PMT_sp.branch_if_less_than('repeat_wait', self.wait_counter, self.N_1us)
         
         self.PMT_sp.set_output_port(hd.counter_control_port, [(hd.PMT1_counter_enable, 0), ], 'Stop counter')
         
@@ -61,7 +62,7 @@ class PMT():
         self.PMT_sp.decide_repeat = \
         \
         self.PMT_sp.add(self.run_counter, self.run_counter, 1, 'run_counter++')
-        self.PMT_sp.branch_if_less_than('repeat_run', self.run_counter, self.max_run_count)
+        self.PMT_sp.branch_if_less_than('repeat_run', self.run_counter, self.num_run)
         self.PMT_sp.stop()
         
         #print("setup complete")
@@ -94,7 +95,7 @@ class PMT():
             total_data_count += data_count
             data_count = self.sequencer.fifo_data_length()
         
-        if total_data_count == self.max_run_count:
+        if total_data_count == self.num_run:
             print('FIFO data length:', total_data_count)
             
         else:
@@ -113,5 +114,6 @@ class PMT():
         
 #%%
 if __name__ == '__main__':
-    PMT = PMT(port = 'COM7')
-    count = PMT.PMT_count_measure()
+    my_pmt = PMT(port = 'COM7')
+    my_pmt.setup_PMT_sp(N_1us = 3)
+    count = my_pmt.PMT_count_measure()

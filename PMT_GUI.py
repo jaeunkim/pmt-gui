@@ -19,7 +19,7 @@ import HardwareDefinition_SNU_v4_01 as hd
 
 ################# Importing Hardware APIs #######################
 from KDC101 import KDC101  # Thorlabs KDC101 Motor Controller
-from PMT_v2_00 import PMT
+from PMT_v3 import PMT
 # from DUMMY_PMT import PMT
 
 ################ Importing GUI Dependencies #####################
@@ -86,7 +86,8 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
                                        float(self.LE_x_stop.text())+float(self.LE_x_step.text()), float(self.LE_x_step.text()))
         self.y_pos_list = np.arange(float(self.LE_y_start.text()), 
                                        float(self.LE_y_stop.text())+float(self.LE_y_step.text()), float(self.LE_y_step.text()))
-        self.pmt_exposure_time_in_ms = self.LE_pmt_exposure_time_in_ms.text()
+        self.pmt_exposure_time_in_ms = float(self.LE_pmt_exposure_time_in_ms.text())
+        self.scanning_thread.set_exposure_time(self, self.pmt_exposure_time_in_ms, num_run = 1):
         print("scanning for", self.x_pos_list, self.y_pos_list, self.pmt_exposure_time_in_ms)
         
         # numpy array to store scanned image
@@ -113,7 +114,6 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         """
         x_pos = self.x_pos_list[self.num_points_done % self.x_num]
         y_pos = self.y_pos_list[self.num_points_done // self.x_num]
-        exposure_time = float(self.LE_pmt_exposure_time_in_ms.text())
         
         # zigzag scanning to minimize backlash
         if np.where(self.y_pos_list == y_pos)[0][0] % 2 == 1:  # for even-numbered rows
@@ -121,7 +121,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
             new_index = -1 * (original_index + 1)  # counting from the end of the list
             x_pos = self.x_pos_list[new_index]  # overwriting x_pos
             
-        self.scan_request.emit(x_pos, y_pos, exposure_time)
+        self.scan_request.emit(x_pos, y_pos, self.pmt_exposure_time_in_ms)
     
     def receive_result(self, x_pos, y_pos, exposure_time, pmt_count):
         self.mutex.lock()
@@ -149,7 +149,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
             if self.currently_rescanning:  # rescanning phase in gotomax is finished
                 true_x_argmax, true_y_argmax = np.unravel_index(np.argmax(self.image, axis=None), self.image.shape)
                 # sending motors to max position by making a measurement at that position
-                self.scan_request.emit(self.x_pos_list[true_x_argmax], self.y_pos_list[true_y_argmax], self.exposure_time)
+                self.scan_request.emit(self.x_pos_list[true_x_argmax], self.y_pos_list[true_y_argmax], self.pmt_exposure_time_in_ms)
        
         # save result only if a line is finished
         if x_index == len(self.x_pos_list) - 1:  # end of a line
@@ -276,7 +276,7 @@ class ScanningThread(QThread):
         self.scan_todo_flag = False  # True when there's a scanning job to do
         self.x_pos = -1
         self.y_pos = -1
-        self.exposure_time = -1
+        self.pmt_exposure_time_in_ms = -1
         self.cond = QWaitCondition()
         self.mutex = QMutex()
         
@@ -289,7 +289,7 @@ class ScanningThread(QThread):
 
     
     def setup_hardwares(self):
-        self.pmt = PMT(N_500us = 2, T_500us = 50000-3-2, max_run_count = 1, port = self.fpga_com_port)
+        self.pmt = PMT(port = self.fpga_com_port)
  
         self.x_motor = KDC101(self.x_motor_serno)
         self.x_motor.load_dll()
@@ -300,6 +300,11 @@ class ScanningThread(QThread):
         self.y_motor.load_dll()
         self.y_motor.open()
         self.y_motor.start_polling()
+        
+    def set_exposure_time(self, exposure_time, num_run = 1):
+        self.exposure_time = exposure_time
+        N_1us = round(exposure_time // 0.001)
+        my_pmt.setup_PMT_sp(N_1us = N_1us, num_run = num_run)
         
     def run(self):
         while self.running_flag:
