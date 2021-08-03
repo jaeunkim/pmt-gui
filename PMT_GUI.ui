@@ -86,7 +86,7 @@
               <item row="0" column="2">
                <widget class="QLabel" name="label_5">
                 <property name="text">
-                 <string>End</string>
+                 <string>Stop</string>
                 </property>
                </widget>
               </item>
@@ -110,7 +110,7 @@
               <item row="0" column="0">
                <widget class="QLabel" name="label_4">
                 <property name="text">
-                 <string>μm</string>
+                 <string>mm</string>
                 </property>
                </widget>
               </item>

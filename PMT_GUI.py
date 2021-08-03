@@ -20,6 +20,7 @@ import HardwareDefinition_SNU_v4_01 as hd
 ################# Importing Hardware APIs #######################
 from KDC101 import KDC101  # Thorlabs KDC101 Motor Controller
 from PMT_v2_00 import PMT
+# from DUMMY_PMT import PMT
 
 ################ Importing GUI Dependencies #####################
 import os, time
@@ -55,7 +56,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.BTN_select_save_file.clicked.connect(self.select_save_file)
         self.BTN_stop_scanning.clicked.connect(self.stop_scanning)
         self.BTN_pause_or_resume_scanning.clicked.connect(self.pause_or_resume_scanning)
-        self.BTN_go_to_max.connect(self.go_to_max)
+        self.BTN_go_to_max.clicked.connect(self.go_to_max)
 
         # Internal 
         self.x_pos_list = []
@@ -70,6 +71,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         
         # Setup: scanning thread
         self.scanning_thread = ScanningThread(x_motor_serno = "27002644", y_motor_serno = "27002621", fpga_com_port = "COM7")
+        # self.scanning_thread = ScanningThread(x_motor_serno = "27001495", y_motor_serno = "27000481", fpga_com_port = "COM7")
         self.scanning_thread.scan_result.connect(self.receive_result)
         self.scan_request.connect(self.scanning_thread.register_request)
         self.scanning_thread.running_flag = False
@@ -114,7 +116,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         exposure_time = float(self.LE_pmt_exposure_time_in_ms.text())
         
         # zigzag scanning to minimize backlash
-        if y_pos % 2 == 1:  # for even-numbered rows
+        if np.where(self.y_pos_list == y_pos)[0][0] % 2 == 1:  # for even-numbered rows
             original_index = self.num_points_done % self.x_num
             new_index = -1 * (original_index + 1)  # counting from the end of the list
             x_pos = self.x_pos_list[new_index]  # overwriting x_pos
@@ -185,10 +187,10 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         canvas = FigureCanvas(fig)
         toolbar = NavigationToolbar(canvas, self)
         
+        layout = QVBoxLayout()
         layout.addWidget(toolbar)
         layout.addWidget(canvas)
         frame.setLayout(layout)
-        layout = QVBoxLayout()
         
         return toolbar, ax, canvas
     
@@ -201,7 +203,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         #TODO let user choose vmin and vmax (where?)
         #self.ax.imshow(img, vmin=self.vmin, vmax=self.vmax)
         self.ax.clear()
-        self.ax.imshow(self.image)
+        self.ax.imshow(self.image.T)
         self.canvas.draw()
     
     def go_to_max(self):
@@ -210,14 +212,14 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         clipped_x_rescan_index = np.clip([max_x_index - self.gotomax_rescan_range//2, max_x_index + self.gotomax_rescan_range//2], 0, self.x_num-1)
         clipped_y_rescan_index = np.clip([max_y_index - self.gotomax_rescan_range//2, max_y_index + self.gotomax_rescan_range//2], 0, self.y_num-1)
         print(max_x_index, max_y_index, clipped_x_rescan_index, clipped_y_rescan_index)
-        rescan_x_pos_list = self.x_pos_list[clipped_x_rescan_range[0]:clipped_x_rescan_range[1]]
-        rescan_y_pos_list = self.x_pos_list[clipped_y_rescan_range[0]:clipped_y_rescan_range[1]]
+        rescan_x_pos_list = self.x_pos_list[clipped_x_rescan_index[0]:clipped_x_rescan_index[1]]
+        rescan_y_pos_list = self.x_pos_list[clipped_y_rescan_index[0]:clipped_y_rescan_index[1]]
         
         # create a new savefile
         if self.save_file is not None:
             new_file = self.save_file[:-4] + "_rescan_around_max.csv"
             with open(new_file, 'w') as f:
-                df = pd.DataFrame("auto-generatred file to store measurements during go_to_max()")
+                df = pd.DataFrame(["auto-generatred file to store measurements during go_to_max()"])
                 df.to_csv(f, index=False, header=False, line_terminator='\n')
                 self.save_file = new_file
                 
