@@ -19,8 +19,8 @@ import HardwareDefinition_SNU_v4_01 as hd
 
 ################# Importing Hardware APIs #######################
 from KDC101 import KDC101  # Thorlabs KDC101 Motor Controller
-from PMT_v3 import PMT
-# from DUMMY_PMT import PMT
+# from PMT_v3 import PMT
+from DUMMY_PMT import PMT
 
 ################ Importing GUI Dependencies #####################
 import os, time
@@ -34,6 +34,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+
+import configparser
 
 filename = os.path.abspath(__file__)
 dirname = os.path.dirname(filename)
@@ -247,6 +249,9 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         
         self.ax.set_xticks(self.x_pos_list)
         self.ax.set_yticks(self.y_pos_list)
+        
+        # reduce clutter of labels
+        plt.xticks(rotation = 45, ha = 'right')
         
         self.canvas.draw()
     
