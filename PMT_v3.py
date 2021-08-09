@@ -30,7 +30,7 @@ class PMT():
     def setup_PMT_sp(self, 
                      N_1us = 2,
                      T_1us = 100-3-2,
-                     num_run = 1,
+                     num_run = 50,
                      ):
         print("setup_PMT_sp: ", N_1us, T_1us, num_run)
         self.N_1us = N_1us
@@ -42,7 +42,7 @@ class PMT():
         # Start of the repeating part
         self.PMT_sp.repeat_run = \
         \
-        self.PMT_sp.load_immediate(self.wait_counter,  0)
+        self.PMT_sp.load_immediate(self.wait_counter, 0)
         self.PMT_sp.trigger_out([hd.PMT1_counter_reset], 'Reset single counter')
         self.PMT_sp.set_output_port(hd.counter_control_port, [(hd.PMT1_counter_enable, 1), ], 'Start counter')
         

@@ -40,8 +40,17 @@ dirname = os.path.dirname(filename)
 uifile = dirname + '/PMT_GUI.ui'
 Ui_Form, QtBaseClass = uic.loadUiType(uifile)
 
+#%% Temporary
+from threading import Thread
+
+
 class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
     scan_request = pyqtSignal(float, float, float)
+    
+    def closeEvent(self, e):
+        self.scanning_thread.clean_up_devices()
+        time.sleep(1)
+        print("Cleaned hardwares.")
     
     def __init__(self, window_title="", parent=None):
         QtWidgets.QMainWindow.__init__(self, parent)
@@ -50,6 +59,8 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
 
         # Plot
         self.toolbar, self.ax, self.canvas = self.create_canvas(self.image_viewer)
+        _, self.ax_pmt, self.canvas_pmt = self.create_canvas(self.PMT_scanning_viewer)
+        
         
         # Connect sockets and signals
         self.BTN_start_scanning.clicked.connect(self.start_scanning)
@@ -57,7 +68,8 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.BTN_stop_scanning.clicked.connect(self.stop_scanning)
         self.BTN_pause_or_resume_scanning.clicked.connect(self.pause_or_resume_scanning)
         self.BTN_go_to_max.clicked.connect(self.go_to_max)
-
+        
+        
         # Internal 
         self.x_pos_list = []
         self.y_pos_list = []
@@ -71,11 +83,27 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         
         # Setup: scanning thread
         self.scanning_thread = ScanningThread(x_motor_serno = "27002644", y_motor_serno = "27002621", fpga_com_port = "COM7")
+        self.x_motor = self.scanning_thread.x_motor
+        self.y_motor = self.scanning_thread.y_motor
+        self.pmt = self.scanning_thread.pmt
+        
+        
         # self.scanning_thread = ScanningThread(x_motor_serno = "27001495", y_motor_serno = "27000481", fpga_com_port = "COM7")
         self.scanning_thread.scan_result.connect(self.receive_result)
         self.scan_request.connect(self.scanning_thread.register_request)
         self.scanning_thread.running_flag = False
-    
+        
+        # Get position of the stage and update
+        self.ReadStagePosition()
+        
+        self.PMT_thread = MyPMTThread(self.pmt)
+        self.PMT_thread.pmt_result.connect(self.PlotPMTResult)
+        self.PMT_counts_list = []
+        self.PMT_number_list = []
+        self.PMT_num = 1
+        self.PMT_vmin = 0
+        self.PMT_vmax = 100
+            
     def update_progress_label(self):
         self.LBL_latest_count.setText(str(self.latest_count))
         self.LBL_points_done.setText(str(self.num_points_done))
@@ -87,7 +115,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.y_pos_list = np.arange(float(self.LE_y_start.text()), 
                                        float(self.LE_y_stop.text())+float(self.LE_y_step.text()), float(self.LE_y_step.text()))
         self.pmt_exposure_time_in_ms = float(self.LE_pmt_exposure_time_in_ms.text())
-        self.scanning_thread.set_exposure_time(self, self.pmt_exposure_time_in_ms, num_run = 1):
+        self.scanning_thread.set_exposure_time(self.pmt_exposure_time_in_ms, num_run = 50)
         print("scanning for", self.x_pos_list, self.y_pos_list, self.pmt_exposure_time_in_ms)
         
         # numpy array to store scanned image
@@ -132,6 +160,10 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         y_index = np.where(self.y_pos_list == y_pos)[0][0]
         print('x, y', x_index, y_index)
         self.image[x_index, y_index] = pmt_count
+        
+        self.LBL_X_pos.setText("%.3f" % x_pos)
+        self.LBL_Y_pos.setText("%.3f" % y_pos)
+        
         self.show_img()
         self.latest_count = pmt_count
         self.num_points_done += 1
@@ -174,12 +206,14 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         # dialog to choose a file
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
-        self.save_file, _ = QFileDialog.getOpenFileName(self,"load a .tif file", "","*", options=options)
+        self.save_file, _ = QFileDialog.getSaveFileName(self,"Save a .csv file", "","*.csv", options=options)
         if not self.save_file:
             return  # user pressed "cancel"
 
         # show savefile path to GUI
         self.LBL_save_file.setText(self.save_file)
+        
+        open (self.save_file + '.csv', 'w', encoding='ascii')
     
     def create_canvas(self, frame):
         fig = plt.Figure(tight_layout=True)
@@ -203,15 +237,25 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         #TODO let user choose vmin and vmax (where?)
         #self.ax.imshow(img, vmin=self.vmin, vmax=self.vmax)
         self.ax.clear()
-        self.ax.imshow(self.image.T)
+        extent = np.array([self.x_pos_list[0]  - float(self.LE_x_step.text())/2,
+                           self.x_pos_list[-1] + float(self.LE_x_step.text())/2,
+                           self.y_pos_list[-1] + float(self.LE_y_step.text())/2,
+                           self.y_pos_list[0]  - float(self.LE_y_step.text())/2]).astype(np.float16)
+        
+        
+        self.ax.imshow(self.image.T, extent = extent)
+        
+        self.ax.set_xticks(self.x_pos_list)
+        self.ax.set_yticks(self.y_pos_list)
+        
         self.canvas.draw()
     
     def go_to_max(self):
         # define a small patch around the max position to rescan 
-        max_x_index, max_y_index = np.unravel_index(np.argmax(self.image, axis=None), self.image.shape)
+        max_y_index, max_x_index = np.unravel_index(np.argmax(self.image.T, axis=None), self.image.T.shape)
         clipped_x_rescan_index = np.clip([max_x_index - self.gotomax_rescan_range//2, max_x_index + self.gotomax_rescan_range//2], 0, self.x_num-1)
         clipped_y_rescan_index = np.clip([max_y_index - self.gotomax_rescan_range//2, max_y_index + self.gotomax_rescan_range//2], 0, self.y_num-1)
-        print(max_x_index, max_y_index, clipped_x_rescan_index, clipped_y_rescan_index)
+        print("Found max value at (%d, %d)." % (self.x_pos_list[max_x_index], self.max_y_index))
         rescan_x_pos_list = self.x_pos_list[clipped_x_rescan_index[0]:clipped_x_rescan_index[1]]
         rescan_y_pos_list = self.x_pos_list[clipped_y_rescan_index[0]:clipped_y_rescan_index[1]]
         
@@ -258,9 +302,91 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
             self.send_request()
         
     def stop_scanning(self):
+        if "Release" in self.BTN_stop_scanning.text():
+            release_flag = True
+            self.BTN_stop_scanning.setText("Grab FPGA")
+            print("Released FPGA")
+        else:
+            release_flag = False
+            self.BTN_stop_scanning.setText("Release FPGA")
+            print("Snatched FPGA")
         self.scanning_thread.stop_thread_and_clean_up_hardware()
+        
+        
 
-
+    #%% JJH added
+    def SetStagePosition(self):
+        x_pos = float(self.LBL_X_pos.text())
+        y_pos = float(self.LBL_Y_pos.text())
+        self.x_motor.move_to_position(x_pos)
+        self.y_motor.move_to_position(y_pos)
+        
+    def ReadStagePosition(self):
+        x_pos = self.x_motor.get_position()
+        y_pos = self.y_motor.get_position()
+        self.LBL_X_pos.setText("%.3f" % x_pos)
+        self.LBL_Y_pos.setText("%.3f" % y_pos)
+        
+    #%% PMT Plotter
+    def SetAverageNumber(self):
+        avg_num = int(self.TXT_PMT_count.text())
+        exp_time = float(self.TXT_exposure_time.text())
+        self.scanning_thread.set_exposure_time(exp_time, avg_num)
+        
+    def SetExposureTime(self):
+        avg_num = int(self.TXT_PMT_count.text())
+        exp_time = float(self.TXT_exposure_time.text())
+        self.scanning_thread.set_exposure_time(exp_time, avg_num)
+        
+    def PlotPMTResult(self, count):
+        self.ax_pmt.clear()
+        if len(self.PMT_counts_list) > 50:
+            self.PMT_counts_list.pop(0)
+            self.PMT_number_list.pop(0)
+        self.PMT_num += 1
+        self.PMT_counts_list.append(count)
+        self.PMT_number_list.append(self.PMT_num)
+        
+        
+        self.ax_pmt.plot(self.PMT_number_list, self.PMT_counts_list, color='teal')
+        self.ax_pmt.set_ylim(self.PMT_vmin, self.PMT_vmax)
+        
+        self.TXT_pmt_result.setText("%.2f" % (count))
+        
+        self.canvas_pmt.draw()
+        
+    def SetPMTMin(self):
+        self.PMT_vmin = float(self.TXT_y_min.text())
+        
+    def SetPMTMax(self):
+        self.PMT_vmax = float(self.TXT_y_max.text())
+        
+    def StartPMTScan(self):
+        self.SetExposureTime()
+        self.PMT_thread.run_flag = True
+        self.PMT_thread.start()
+        
+    def StopPMTScan(self):
+        self.PMT_thread.run_flag = False
+        while self.PMT_thread.isRunning():
+            time.sleep(0.1)
+        
+            
+class MyPMTThread(QThread):
+    
+    pmt_result = pyqtSignal(float)
+    
+    def __init__(self, pmt):
+        super().__init__()
+        self.pmt = pmt
+        self.run_flag = False
+        
+    def run(self):
+        while self.run_flag:
+            my_count = self.pmt.PMT_count_measure()
+            time.sleep(0.1)
+            self.pmt_result.emit(my_count)
+        
 class ScanningThread(QThread):
     """
     Communicates with relevant hardwares (PMT, motors)
@@ -276,7 +402,6 @@ class ScanningThread(QThread):
         self.scan_todo_flag = False  # True when there's a scanning job to do
         self.x_pos = -1
         self.y_pos = -1
-        self.pmt_exposure_time_in_ms = -1
         self.cond = QWaitCondition()
         self.mutex = QMutex()
         
@@ -286,6 +411,7 @@ class ScanningThread(QThread):
         self.fpga_com_port = fpga_com_port
         
         self.setup_hardwares()
+        self.num_run = 1
 
     
     def setup_hardwares(self):
@@ -301,10 +427,11 @@ class ScanningThread(QThread):
         self.y_motor.open()
         self.y_motor.start_polling()
         
-    def set_exposure_time(self, exposure_time, num_run = 1):
+    def set_exposure_time(self, exposure_time, num_run):
         self.exposure_time = exposure_time
+        self.num_run = num_run
         N_1us = round(exposure_time // 0.001)
-        my_pmt.setup_PMT_sp(N_1us = N_1us, num_run = num_run)
+        self.pmt.setup_PMT_sp(N_1us = N_1us, num_run = num_run)
         
     def run(self):
         while self.running_flag:
@@ -332,18 +459,23 @@ class ScanningThread(QThread):
         self.x_motor.move_to_position(self.x_pos)
         self.y_motor.move_to_position(self.y_pos)
     
-    def stop_thread_and_clean_up_hardware(self):
+    def stop_thread_and_clean_up_hardware(self, release_flag):
         self.running_flag = False
         
-        # motor cleanup
+        if release_flag: # 
+            self.pmt.sequencer.close() # Release FPGA
+            self.pmt = None
+        else:
+            self.pmt = PMT(port = self.fpga_com_port)
+               
+        
+    def clean_up_devices(self):
+        if not self.pmt == None:
+            self.pmt.sequencer.close()
         self.x_motor.stop_polling()
         self.x_motor.close()
         self.y_motor.stop_polling()
         self.y_motor.close()
-        
-        # fpga cleanup
-        self.pmt.sequencer.release()
-        
         
 if __name__ == "__main__":
     app = QtWidgets.QApplication.instance()
