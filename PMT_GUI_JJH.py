@@ -274,13 +274,10 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         
         # ver.2: rescan range may extend outside the original scan range. I think this makes more sense
         max_x_pos, max_y_pos = self.x_pos_list[max_x_index], self.y_pos_list[max_y_index]
-        rescan_x_pos_list = np.arange(max_x_pos - self.gotomax_rescan_radius, max_x_pos + self.gotomax_rescan_radius + float(self.LE_x_step.text()), float(self.LE_x_step.text()))
-        rescan_y_pos_list = np.arange(max_y_pos - self.gotomax_rescan_radius, max_y_pos + self.gotomax_rescan_radius + float(self.LE_y_step.text()), float(self.LE_y_step.text()))
-        self.x_pos_list = rescan_x_pos_list
-        self.y_pos_list = rescan_y_pos_list
+        rescan_x_pos_list = np.arange(max_x_pos - self.gotomax_rescan_radius, max_x_pos + self.gotomax_rescan_radius + self.x_s, self.x_s)
         
         # create a new savefile
-        if self.save_file is not None:
+        if self.save_file != None:
             new_file = self.save_file[:-4] + "_rescan_around_max.csv"
             with open(new_file, 'w') as f:
                 df = pd.DataFrame(["auto-generatred file to store measurements during go_to_max()"])
@@ -291,7 +288,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.currently_rescanning = True
         self.x_pos_list = rescan_x_pos_list
         self.y_pos_list = rescan_y_pos_list
-        self.pmt_exposure_time_in_ms = float(self.LE_pmt_exposure_time_in_ms.text())  # maybe the user wants to update exposure time
+        self.pmt_exposure_time_in_ms = float(self.LE_pmt_exposure_time_in_ms.text())
         print("REscanning for", self.x_pos_list, self.y_pos_list, self.pmt_exposure_time_in_ms)
         
         # numpy array to store scanned image
