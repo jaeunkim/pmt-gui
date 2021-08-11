@@ -19,8 +19,8 @@ import HardwareDefinition_SNU_v4_01 as hd
 
 ################# Importing Hardware APIs #######################
 from KDC101 import KDC101  # Thorlabs KDC101 Motor Controller
-# from PMT_v3 import PMT
-from DUMMY_PMT import PMT
+from PMT_v3 import PMT
+# from DUMMY_PMT import PMT
 
 ################ Importing GUI Dependencies #####################
 import os, time
@@ -35,7 +35,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
-import configparser
+import configparser, pathlib
 
 filename = os.path.abspath(__file__)
 dirname = os.path.dirname(filename)
@@ -66,7 +66,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         
         # Connect sockets and signals
         self.BTN_start_scanning.clicked.connect(self.start_scanning)
-        self.BTN_select_save_file.clicked.connect(self.select_save_file)
+        self.BTN_select_save_file.clicked.connect(self.change_save_file)
         self.BTN_stop_scanning.clicked.connect(self.stop_scanning)
         self.BTN_pause_or_resume_scanning.clicked.connect(self.pause_or_resume_scanning)
         self.BTN_go_to_max.clicked.connect(self.go_to_max)
@@ -80,8 +80,10 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.latest_count = -1
         self.scan_ongoing_flag = True  # pause/resume scanning
         self.mutex = QMutex()  # to avoid weird situations regarding pause
-        self.gotomax_rescan_range = 5  # tile size to rescan in self.go_to_max()
+        self.gotomax_rescan_radius = 1  # tile size to rescan in self.go_to_max()
         self.currently_rescanning = False  # true during gotomax operation
+        self.save_file = str(pathlib.Path(__file__).parent.resolve()) + "/data/default.csv"
+        self.LBL_save_file.setText("DEFAULT FILE: ./data/default.csv")
         
         # Setup: scanning thread
         self.scanning_thread = ScanningThread(x_motor_serno = "27002644", y_motor_serno = "27002621", fpga_com_port = "COM7")
@@ -177,14 +179,16 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
             if self.scan_ongoing_flag:
                 self.send_request()
         else:  # if scanning is done
-            self.scanning_thread.running_flag = False
             if self.CB_auto_go_to_max.isChecked():
                 self.go_to_max()
             if self.currently_rescanning:  # rescanning phase in gotomax is finished
                 true_x_argmax, true_y_argmax = np.unravel_index(np.argmax(self.image, axis=None), self.image.shape)
                 # sending motors to max position by making a measurement at that position
                 self.scan_request.emit(self.x_pos_list[true_x_argmax], self.y_pos_list[true_y_argmax], self.pmt_exposure_time_in_ms)
-       
+                time.sleep(0.5)
+                self.currently_rescanning = False  # gotomax is done
+            self.scanning_thread.running_flag = False  # because scanning is done
+            
         # save result only if a line is finished
         if x_index == len(self.x_pos_list) - 1:  # end of a line
             # put data into the correct shape
@@ -198,13 +202,15 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
                                              exposure_time_list_np, pmt_count_list_np])
             df = pd.DataFrame(data_chunk_to_append).transpose()
     
-            if self.save_file is not None:
+            try:
                 with open(self.save_file, 'a') as f:
                     df.to_csv(f, index=False, header=False, line_terminator='\n')
+            except:
+                print("WARNING: cannot open savefile")
         
         self.mutex.unlock()
         
-    def select_save_file(self):
+    def change_save_file(self):
         # dialog to choose a file
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
@@ -251,32 +257,35 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.ax.set_yticks(self.y_pos_list)
         
         # reduce clutter of labels
-        plt.xticks(rotation = 45, ha = 'right')
+        self.ax.tick_params(axis = 'x', labelrotation = 45)
         
         self.canvas.draw()
     
     def go_to_max(self):
         # define a small patch around the max position to rescan 
         max_y_index, max_x_index = np.unravel_index(np.argmax(self.image.T, axis=None), self.image.T.shape)
-        clipped_x_rescan_index = np.clip([max_x_index - self.gotomax_rescan_range//2, max_x_index + self.gotomax_rescan_range//2], 0, self.x_num-1)
-        clipped_y_rescan_index = np.clip([max_y_index - self.gotomax_rescan_range//2, max_y_index + self.gotomax_rescan_range//2], 0, self.y_num-1)
-        print("Found max value at (%d, %d)." % (self.x_pos_list[max_x_index], self.max_y_index))
-        rescan_x_pos_list = self.x_pos_list[clipped_x_rescan_index[0]:clipped_x_rescan_index[1]]
-        rescan_y_pos_list = self.x_pos_list[clipped_y_rescan_index[0]:clipped_y_rescan_index[1]]
         
-        # create a new savefile
-        if self.save_file is not None:
-            new_file = self.save_file[:-4] + "_rescan_around_max.csv"
-            with open(new_file, 'w') as f:
-                df = pd.DataFrame(["auto-generatred file to store measurements during go_to_max()"])
-                df.to_csv(f, index=False, header=False, line_terminator='\n')
-                self.save_file = new_file
-                
+        # ver.1: restrict rescan range inside the original scan range
+        # clipped_x_rescan_index = np.clip([max_x_index - self.gotomax_rescan_radius, max_x_index + self.gotomax_rescan_radius + 1], 0, self.x_num-1)
+        # clipped_y_rescan_index = np.clip([max_y_index - self.gotomax_rescan_radius, max_y_index + self.gotomax_rescan_radius + 1], 0, self.y_num-1)
+        # print("Found max value at (%d, %d)." % (self.x_pos_list[max_x_index], self.y_pos_list[max_y_index]))
+        # rescan_x_pos_list = self.x_pos_list[clipped_x_rescan_index[0]:clipped_x_rescan_index[1]]
+        # rescan_y_pos_list = self.x_pos_list[clipped_y_rescan_index[0]:clipped_y_rescan_index[1]]
+        
+        # ver.2: rescan range may extend outside the original scan range. I think this makes more sense
+        max_x_pos, max_y_pos = self.x_pos_list[max_x_index], self.y_pos_list[max_y_index]
+        x_step, y_step = float(self.LE_x_step.text()), float(self.LE_y_step.text())
+        rescan_x_pos_list = np.arange(max_x_pos - self.gotomax_rescan_radius*x_step, max_x_pos + self.gotomax_rescan_radius*x_step + 0.00001, x_step)  # 0.00001 to include stop value
+        rescan_y_pos_list = np.arange(max_y_pos - self.gotomax_rescan_radius*y_step, max_y_pos + self.gotomax_rescan_radius*y_step + 0.00001, y_step)
+        print("GOTOMAX", max_x_pos, max_y_pos, self.LE_x_step.text())
+        self.x_pos_list = rescan_x_pos_list
+        self.y_pos_list = rescan_y_pos_list
+        
         # start rescanning
         self.currently_rescanning = True
         self.x_pos_list = rescan_x_pos_list
         self.y_pos_list = rescan_y_pos_list
-        self.pmt_exposure_time_in_ms = self.LE_pmt_exposure_time_in_ms.text()
+        self.pmt_exposure_time_in_ms = float(self.LE_pmt_exposure_time_in_ms.text())  # maybe the user wants to update exposure time
         print("REscanning for", self.x_pos_list, self.y_pos_list, self.pmt_exposure_time_in_ms)
         
         # numpy array to store scanned image
