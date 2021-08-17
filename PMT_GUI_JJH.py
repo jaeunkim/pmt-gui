@@ -111,21 +111,20 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
     def update_progress_label(self):
         self.LBL_latest_count.setText(str(self.latest_count))
         self.LBL_points_done.setText(str(self.num_points_done))
+    
+    def update_scan_range(self, x_start, x_stop, x_step, y_start, y_stop, y_step, pmt_exposure_time_in_ms, num_run = 50):
+        padding = 0.00001  # some small value to include the stop value in the scan range
         
-    def start_scanning(self):
-        # read scan settings
-        self.x_pos_list = np.arange(float(self.LE_x_start.text()), 
-                                       float(self.LE_x_stop.text())+float(self.LE_x_step.text()), float(self.LE_x_step.text()))
-        self.y_pos_list = np.arange(float(self.LE_y_start.text()), 
-                                       float(self.LE_y_stop.text())+float(self.LE_y_step.text()), float(self.LE_y_step.text()))
-        self.pmt_exposure_time_in_ms = float(self.LE_pmt_exposure_time_in_ms.text())
-        self.scanning_thread.set_exposure_time(self.pmt_exposure_time_in_ms, num_run = 50)
-        print("scanning for", self.x_pos_list, self.y_pos_list, self.pmt_exposure_time_in_ms)
-        
-        # numpy array to store scanned image
+        # update the variables related to the scan range
+        self.x_pos_list = np.arange(x_start, x_stop + padding, x_step)
+        self.y_pos_list = np.arange(y_start, y_stop + padding, y_step)
         self.x_num = len(self.x_pos_list)
         self.y_num = len(self.y_pos_list)
         self.image = np.zeros((self.x_num, self.y_num))
+        
+        # update PMT settings
+        self.pmt_exposure_time_in_ms = pmt_exposure_time_in_ms
+        self.scanning_thread.set_exposure_time(self.pmt_exposure_time_in_ms, num_run = num_run)
         
         # update scan_progress labels
         self.num_points_done = 0
@@ -133,6 +132,14 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.update_progress_label()
         self.LBL_total_points.setText(str(self.x_num * self.y_num))
         
+        print("updated scan range: ", self.x_pos_list, self.y_pos_list, self.pmt_exposure_time_in_ms)
+        
+    def start_scanning(self):
+        # read and register scan settings
+        self.update_scan_range(float(self.LE_x_start.text()), float(self.LE_x_stop.text()), float(self.LE_x_step.text()),
+                                float(self.LE_y_start.text()), float(self.LE_y_stop.text()), float(self.LE_y_step.text()),
+                                float(self.LE_pmt_exposure_time_in_ms.text()), num_run = 50)
+
         # initiate scanning
         if not self.scanning_thread.running_flag:
             self.scanning_thread.running_flag = True
@@ -274,35 +281,16 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         
         # ver.2: rescan range may extend outside the original scan range. I think this makes more sense
         max_x_pos, max_y_pos = self.x_pos_list[max_x_index], self.y_pos_list[max_y_index]
-
-        x_step, y_step = float(self.LE_x_step.text()), float(self.LE_y_step.text())
-        rescan_x_pos_list = np.arange(max_x_pos - self.gotomax_rescan_radius*x_step, max_x_pos + self.gotomax_rescan_radius*x_step + 0.00001, x_step)  # 0.00001 to include stop value
-        rescan_y_pos_list = np.arange(max_y_pos - self.gotomax_rescan_radius*y_step, max_y_pos + self.gotomax_rescan_radius*y_step + 0.00001, y_step)
-        print("GOTOMAX", max_x_pos, max_y_pos, self.LE_x_step.text())
-        self.x_pos_list = rescan_x_pos_list
-        self.y_pos_list = rescan_y_pos_list
-
-        # start rescanning
-        self.currently_rescanning = True
-        self.x_pos_list = rescan_x_pos_list
-        self.y_pos_list = rescan_y_pos_list
+        x_step, y_step = float(self.LE_x_step.text()), float(self.LE_y_step.text()) 
+        x_rescan_radius = self.gotomax_rescan_radius * x_step
+        y_rescan_radius = self.gotomax_rescan_radius * y_step
         
-        self.pmt_exposure_time_in_ms = float(self.LE_pmt_exposure_time_in_ms.text())  # maybe the user wants to update exposure time
-
-        print("REscanning for", self.x_pos_list, self.y_pos_list, self.pmt_exposure_time_in_ms)
-        
-        # numpy array to store scanned image
-        self.x_num = len(self.x_pos_list)
-        self.y_num = len(self.y_pos_list)
-        self.image = np.zeros((self.x_num, self.y_num))
-        
-        # update scan_progress labels
-        self.num_points_done = 0
-        self.latest_count = 0
-        self.update_progress_label()
-        self.LBL_total_points.setText(str(self.x_num * self.y_num))
-        
+        self.update_scan_range(max_x_pos - x_rescan_radius, max_x_pos + x_rescan_radius, x_step,
+                                max_y_pos - y_rescan_radius, max_y_pos + y_rescan_radius, y_step,
+                                float(self.LE_pmt_exposure_time_in_ms.text()))
+                                
         # initiate scanning
+        self.currently_rescanning = True  # rescanning mode (to avoid recursively calling gotomax() forever)
         if not self.scanning_thread.running_flag:
             self.scanning_thread.running_flag = True
             self.scanning_thread.start()
@@ -330,8 +318,8 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
 
         self.scanning_thread.stop_thread_and_clean_up_hardware(release_flag)
         
-        
     #%% JJH added
+    # Jaeun's comment: these methods should be in a separate "PMT count viewer" class.
     def SetStagePosition(self):
         x_pos = float(self.LBL_X_pos.text())
         y_pos = float(self.LBL_Y_pos.text())
