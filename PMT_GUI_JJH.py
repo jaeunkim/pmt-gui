@@ -274,18 +274,21 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         
         # ver.2: rescan range may extend outside the original scan range. I think this makes more sense
         max_x_pos, max_y_pos = self.x_pos_list[max_x_index], self.y_pos_list[max_y_index]
+
         x_step, y_step = float(self.LE_x_step.text()), float(self.LE_y_step.text())
         rescan_x_pos_list = np.arange(max_x_pos - self.gotomax_rescan_radius*x_step, max_x_pos + self.gotomax_rescan_radius*x_step + 0.00001, x_step)  # 0.00001 to include stop value
         rescan_y_pos_list = np.arange(max_y_pos - self.gotomax_rescan_radius*y_step, max_y_pos + self.gotomax_rescan_radius*y_step + 0.00001, y_step)
         print("GOTOMAX", max_x_pos, max_y_pos, self.LE_x_step.text())
         self.x_pos_list = rescan_x_pos_list
         self.y_pos_list = rescan_y_pos_list
-        
+
         # start rescanning
         self.currently_rescanning = True
         self.x_pos_list = rescan_x_pos_list
         self.y_pos_list = rescan_y_pos_list
+        
         self.pmt_exposure_time_in_ms = float(self.LE_pmt_exposure_time_in_ms.text())  # maybe the user wants to update exposure time
+
         print("REscanning for", self.x_pos_list, self.y_pos_list, self.pmt_exposure_time_in_ms)
         
         # numpy array to store scanned image
@@ -324,10 +327,10 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
             release_flag = False
             self.BTN_stop_scanning.setText("Release FPGA")
             print("Snatched FPGA")
+
         self.scanning_thread.stop_thread_and_clean_up_hardware(release_flag)
         
         
-
     #%% JJH added
     def SetStagePosition(self):
         x_pos = float(self.LBL_X_pos.text())
@@ -480,6 +483,7 @@ class ScanningThread(QThread):
         self.running_flag = False
         
         print(release_flag)
+
         if release_flag: # 
             self.pmt.sequencer.close() # Release FPGA
             self.pmt = None
@@ -488,7 +492,7 @@ class ScanningThread(QThread):
                 self.pmt = PMT(port = self.fpga_com_port)
                 print("Acquired PMT", self.pmt)
                 self.set_exposure_time(self.exposure_time, num_run = 50)
-               
+             
         
     def clean_up_devices(self):
         if not self.pmt == None:

@@ -274,13 +274,14 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         
         # ver.2: rescan range may extend outside the original scan range. I think this makes more sense
         max_x_pos, max_y_pos = self.x_pos_list[max_x_index], self.y_pos_list[max_y_index]
+
         x_step, y_step = float(self.LE_x_step.text()), float(self.LE_y_step.text())
         rescan_x_pos_list = np.arange(max_x_pos - self.gotomax_rescan_radius*x_step, max_x_pos + self.gotomax_rescan_radius*x_step + 0.00001, x_step)  # 0.00001 to include stop value
         rescan_y_pos_list = np.arange(max_y_pos - self.gotomax_rescan_radius*y_step, max_y_pos + self.gotomax_rescan_radius*y_step + 0.00001, y_step)
         print("GOTOMAX", max_x_pos, max_y_pos, self.LE_x_step.text())
         self.x_pos_list = rescan_x_pos_list
         self.y_pos_list = rescan_y_pos_list
-        
+
         # start rescanning
         self.currently_rescanning = True
         self.x_pos_list = rescan_x_pos_list
