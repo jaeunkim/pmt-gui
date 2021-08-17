@@ -244,22 +244,25 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         return toolbar, ax, canvas
     
     def show_img(self):
-        # if self.flip_horizontally_cbox.isChecked():
-        #     img = np.flip(img, 1)
-        # if self.flip_vertically_cbox.isChecked():
-        #     img = np.flip(img, 0)
+        # flip if necessary
+        img = self.image.T
+        if self.CB_flip_horizontally.isChecked():
+            img = np.flip(img, 1)
+        if self.CB_flip_vertically.isChecked():
+            img = np.flip(img, 0)
         
-        #TODO let user choose vmin and vmax (where?)
-        #self.ax.imshow(img, vmin=self.vmin, vmax=self.vmax)
+        # show the image and the indices
         self.ax.clear()
         extent = np.array([self.x_pos_list[0]  - float(self.LE_x_step.text())/2,
                            self.x_pos_list[-1] + float(self.LE_x_step.text())/2,
                            self.y_pos_list[-1] + float(self.LE_y_step.text())/2,
                            self.y_pos_list[0]  - float(self.LE_y_step.text())/2]).astype(np.float16)
-        
-        
-        self.ax.imshow(self.image.T, extent = extent)
-        
+        if not self.CB_auto_minmax.isChecked():
+            my_vmin, my_vmax = float(self.plot_min.text()), float(self.plot_max.text())
+        else:
+            my_vmin, my_vmax = None, None
+        self.ax.imshow(img, extent = extent,  # TODO should the indices also flip when the image is flipped?
+                        vmin = my_vmin, vmax = my_vmax)
         self.ax.set_xticks(self.x_pos_list)
         self.ax.set_yticks(self.y_pos_list)
         

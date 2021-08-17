@@ -299,7 +299,7 @@
                <x>30</x>
                <y>10</y>
                <width>361</width>
-               <height>81</height>
+               <height>102</height>
               </rect>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -328,11 +328,29 @@
                </layout>
               </item>
               <item>
-               <widget class="QCheckBox" name="CB_auto_minmax">
-                <property name="text">
-                 <string>Auto MinMax</string>
-                </property>
-               </widget>
+               <layout class="QHBoxLayout" name="horizontalLayout_2">
+                <item>
+                 <widget class="QCheckBox" name="CB_auto_minmax">
+                  <property name="text">
+                   <string>Auto MinMax</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="CB_flip_vertically">
+                  <property name="text">
+                   <string>Flip Vertically</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="CB_flip_horizontally">
+                  <property name="text">
+                   <string>Flip Horizontally</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
               </item>
              </layout>
             </widget>
