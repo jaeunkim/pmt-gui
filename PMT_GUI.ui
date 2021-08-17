@@ -97,7 +97,7 @@
                <x>33</x>
                <y>20</y>
                <width>361</width>
-               <height>81</height>
+               <height>66</height>
               </rect>
              </property>
              <layout class="QGridLayout" name="gridLayout_3" rowstretch="1,0,0">
@@ -166,8 +166,8 @@
             <widget class="QWidget" name="formLayoutWidget_2">
              <property name="geometry">
               <rect>
-               <x>29</x>
-               <y>105</y>
+               <x>30</x>
+               <y>90</y>
                <width>371</width>
                <height>44</height>
               </rect>
@@ -191,6 +191,19 @@
                </widget>
               </item>
              </layout>
+            </widget>
+            <widget class="QPushButton" name="BTN_scan_vicinity">
+             <property name="geometry">
+              <rect>
+               <x>20</x>
+               <y>140</y>
+               <width>381</width>
+               <height>23</height>
+              </rect>
+             </property>
+             <property name="text">
+              <string>Scan Around the Current Position</string>
+             </property>
             </widget>
            </widget>
           </item>

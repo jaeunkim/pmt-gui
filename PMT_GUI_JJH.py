@@ -70,7 +70,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.BTN_stop_scanning.clicked.connect(self.stop_scanning)
         self.BTN_pause_or_resume_scanning.clicked.connect(self.pause_or_resume_scanning)
         self.BTN_go_to_max.clicked.connect(self.go_to_max)
-        
+        self.BTN_scan_vicinity.clicked.connect(self.scan_vicinity)
         
         # Internal 
         self.x_pos_list = []
@@ -84,6 +84,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.currently_rescanning = False  # true during gotomax operation
         self.save_file = str(pathlib.Path(__file__).parent.resolve()) + "/data/default.csv"
         self.LBL_save_file.setText("DEFAULT FILE: ./data/default.csv")
+        self.mutex = QMutex()
         
         # Setup: scanning thread
         self.scanning_thread = ScanningThread(x_motor_serno = "27002644", y_motor_serno = "27002621", fpga_com_port = "COM7")
@@ -151,6 +152,8 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         initiates a scan request to the scanning thread
         calculates the scan position based on self.num_points_done
         """
+        self.mutex.lock()
+        
         x_pos = self.x_pos_list[self.num_points_done % self.x_num]
         y_pos = self.y_pos_list[self.num_points_done // self.x_num]
         
@@ -161,6 +164,8 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
             x_pos = self.x_pos_list[new_index]  # overwriting x_pos
             
         self.scan_request.emit(x_pos, y_pos, self.pmt_exposure_time_in_ms)
+        
+        self.mutex.unlock()
     
     def receive_result(self, x_pos, y_pos, exposure_time, pmt_count):
         self.mutex.lock()
@@ -299,6 +304,21 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
             self.scanning_thread.start()
         self.send_request()
     
+    def scan_vicinity(self):
+        x_pos = self.x_motor.get_position()
+        y_pos = self.y_motor.get_position()
+        x_step, y_step = float(self.LE_x_step.text()), float(self.LE_y_step.text())
+         
+        self.update_scan_range(x_pos - x_step, x_pos + x_step, x_step,
+                                y_pos - y_step, x_pos + y_step, y_step,
+                                float(self.LE_pmt_exposure_time_in_ms.text()))
+        
+        # initiate scanning
+        if not self.scanning_thread.running_flag:
+            self.scanning_thread.running_flag = True
+            self.scanning_thread.start()
+        self.send_request()
+        
     def pause_or_resume_scanning(self):
         print("entered pause_or_resume_scanning()")
         if self.scan_ongoing_flag:  # scanning -> pause
