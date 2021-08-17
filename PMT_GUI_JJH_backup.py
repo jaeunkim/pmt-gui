@@ -273,19 +273,26 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         # rescan_y_pos_list = self.x_pos_list[clipped_y_rescan_index[0]:clipped_y_rescan_index[1]]
         
         # ver.2: rescan range may extend outside the original scan range. I think this makes more sense
-        max_x_pos, max_y_pos = self.x_pos_list[max_x_index], self.y_pos_list[max_y_index]
-        x_step, y_step = float(self.LE_x_step.text()), float(self.LE_y_step.text())
-        rescan_x_pos_list = np.arange(max_x_pos - self.gotomax_rescan_radius*x_step, max_x_pos + self.gotomax_rescan_radius*x_step + 0.00001, x_step)  # 0.00001 to include stop value
-        rescan_y_pos_list = np.arange(max_y_pos - self.gotomax_rescan_radius*y_step, max_y_pos + self.gotomax_rescan_radius*y_step + 0.00001, y_step)
-        print("GOTOMAX", max_x_pos, max_y_pos, self.LE_x_step.text())
-        self.x_pos_list = rescan_x_pos_list
-        self.y_pos_list = rescan_y_pos_list
+        self.x_s = float(self.LE_x_step.text())
+        self.y_s = float(self.LE_y_step.text())
         
+        max_x_pos, max_y_pos = self.x_pos_list[max_x_index], self.y_pos_list[max_y_index]
+        rescan_x_pos_list = np.arange(max_x_pos - self.gotomax_rescan_radius*self.x_s, max_x_pos + self.gotomax_rescan_radius*self.x_s + 0.0001, self.x_s)
+        rescan_y_pos_list = np.arange(max_y_pos - self.gotomax_rescan_radius*self.x_s, max_y_pos + self.gotomax_rescan_radius*self.x_s + 0.0001, self.y_s)
+        
+        # create a new savefile
+        if self.save_file != None:
+            new_file = self.save_file[:-4] + "_rescan_around_max.csv"
+            with open(new_file, 'w') as f:
+                df = pd.DataFrame(["auto-generatred file to store measurements during go_to_max()"])
+                df.to_csv(f, index=False, header=False, line_terminator='\n')
+                self.save_file = new_file
+                
         # start rescanning
         self.currently_rescanning = True
         self.x_pos_list = rescan_x_pos_list
         self.y_pos_list = rescan_y_pos_list
-        self.pmt_exposure_time_in_ms = float(self.LE_pmt_exposure_time_in_ms.text())  # maybe the user wants to update exposure time
+        self.pmt_exposure_time_in_ms = float(self.LE_pmt_exposure_time_in_ms.text())
         print("REscanning for", self.x_pos_list, self.y_pos_list, self.pmt_exposure_time_in_ms)
         
         # numpy array to store scanned image
@@ -324,7 +331,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
             release_flag = False
             self.BTN_stop_scanning.setText("Release FPGA")
             print("Snatched FPGA")
-        self.scanning_thread.stop_thread_and_clean_up_hardware(release_flag)
+        self.scanning_thread.stop_thread_and_clean_up_hardware()
         
         
 
@@ -450,19 +457,16 @@ class ScanningThread(QThread):
     def run(self):
         while self.running_flag:
             self.mutex.lock()
-            print('locked')
+            
             if not self.scan_todo_flag:  # no job to do
                 self.cond.wait(self.mutex)  # wait for a job to do
             else:  # there's a job to do
-                print("Going to the requested position")
                 self.move_to_requested_position()  # should be atomic
-                print("Getting pmt count")
                 my_count = self.pmt.PMT_count_measure()  # should be atomic
                 self.scan_todo_flag = False  # job done
                 self.scan_result.emit(self.x_pos, self.y_pos, self.exposure_time, my_count)
            
             self.mutex.unlock()
-            print("unlocked")
             
     def register_request(self, x_pos, y_pos, exposure_time):
         self.x_pos = x_pos
@@ -479,15 +483,12 @@ class ScanningThread(QThread):
     def stop_thread_and_clean_up_hardware(self, release_flag):
         self.running_flag = False
         
-        print(release_flag)
         if release_flag: # 
-            self.pmt.sequencer.close() # Release FPGA
-            self.pmt = None
+            if self.pmt is not None:
+                self.pmt.sequencer.close() # Release FPGA
+                self.pmt = None
         else:
-            if not self.pmt:
-                self.pmt = PMT(port = self.fpga_com_port)
-                print("Acquired PMT", self.pmt)
-                self.set_exposure_time(self.exposure_time, num_run = 50)
+            self.pmt = PMT(port = self.fpga_com_port)
                
         
     def clean_up_devices(self):
