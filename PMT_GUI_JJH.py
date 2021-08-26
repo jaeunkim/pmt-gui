@@ -54,10 +54,11 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         time.sleep(1)
         print("Cleaned hardwares.")
     
-    def __init__(self, window_title="", parent=None):
+    def __init__(self, window_title="", parent=None, config_file='EA109.ini'):
         QtWidgets.QMainWindow.__init__(self, parent)
         self.setupUi(self)
         self.setWindowTitle(window_title)
+        self.read_config(config_file)
 
         # Plot
         self.toolbar, self.ax, self.canvas = self.create_canvas(self.image_viewer)
@@ -87,20 +88,20 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.mutex = QMutex()
         
         # Setup: scanning thread
-        self.scanning_thread = ScanningThread(x_motor_serno = "27002644", y_motor_serno = "27002621", fpga_com_port = "COM7")
+        self.scanning_thread = ScanningThread(x_motor_serno = self.x_motor_serno, y_motor_serno = self.y_motor_serno, fpga_com_port = self.fpga_com_port)
+        #self.scanning_thread = ScanningThread(x_motor_serno = "27002644", y_motor_serno = "27002621", fpga_com_port = "COM7")
         self.x_motor = self.scanning_thread.x_motor
         self.y_motor = self.scanning_thread.y_motor
         self.pmt = self.scanning_thread.pmt
-        
         
         # self.scanning_thread = ScanningThread(x_motor_serno = "27001495", y_motor_serno = "27000481", fpga_com_port = "COM7")
         self.scanning_thread.scan_result.connect(self.receive_result)
         self.scan_request.connect(self.scanning_thread.register_request)
         self.scanning_thread.running_flag = False
         
-        # Get position of the stage and update
+        # Get position of the stage and update scan settings accordingly
         self.ReadStagePosition()
-        
+        self.update_gui_scan_info(float(self.LBL_X_pos.text()), float(self.LBL_Y_pos.text()), self.x_step, self.y_step)
         self.PMT_thread = MyPMTThread(self.pmt)
         self.PMT_thread.pmt_result.connect(self.PlotPMTResult)
         self.PMT_counts_list = []
@@ -108,7 +109,31 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.PMT_num = 1
         self.PMT_vmin = 0
         self.PMT_vmax = 100
-            
+    
+    def read_config(self, config_file):
+        config = configparser.ConfigParser()
+        config.read(config_file)
+        self.x_motor_serno = ['motors']['x_serno']
+        self.y_motor_serno = ['motors']['y_serno']
+        self.fpga_com_port = ['fpga']['COM7']
+        self.fpga_dna = ['fpga']['dna']
+        self.x_step = ['gui']['x_step']
+        self.y_step = ['gui']['y_step']
+    
+    def update_gui_scan_settings(self, x_pos, y_pos, x_step=0.1, y_step=0.1):
+        self.GUI_x_start.setSingleStep(x_step)
+        self.GUI_x_stop.setSingleStep(x_step)
+        self.GUI_x_step.setValue(x_step)
+
+        self.GUI_y_start.setSingleStep(self.y_step)
+        self.GUI_y_stop.setSingleStep(self.y_step)
+        self.GUI_y_step.setValue(self.y_step)
+        
+        self.GUI_x_start.setValue(x_pos-x_step)
+        self.GUI_x_stop.setValue(x_pos+x_step)
+        self.GUI_y_start.setValue(y_pos-y_step)
+        self.GUI_y_stop.setValue(y_pos+y_step)
+
     def update_progress_label(self):
         self.LBL_latest_count.setText(str(self.latest_count))
         self.LBL_points_done.setText(str(self.num_points_done))
