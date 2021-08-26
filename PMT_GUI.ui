@@ -85,7 +85,7 @@
          </layout>
         </item>
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout_2" stretch="5,4,3,0,1,0,1">
+         <layout class="QVBoxLayout" name="verticalLayout_2" stretch="5,4,3,0,1,0">
           <item>
            <widget class="QGroupBox" name="groupBox">
             <property name="title">
@@ -97,7 +97,7 @@
                <x>33</x>
                <y>20</y>
                <width>361</width>
-               <height>66</height>
+               <height>84</height>
               </rect>
              </property>
              <layout class="QGridLayout" name="gridLayout_3" rowstretch="1,0,0">
@@ -122,9 +122,6 @@
                 </property>
                </widget>
               </item>
-              <item row="1" column="1">
-               <widget class="QLineEdit" name="LE_x_start"/>
-              </item>
               <item row="0" column="0">
                <widget class="QLabel" name="label_4">
                 <property name="text">
@@ -146,20 +143,53 @@
                 </property>
                </widget>
               </item>
-              <item row="2" column="2">
-               <widget class="QLineEdit" name="LE_y_stop"/>
+              <item row="1" column="1">
+               <widget class="QDoubleSpinBox" name="GUI_x_start">
+                <property name="maximum">
+                 <double>12.000000000000000</double>
+                </property>
+               </widget>
               </item>
               <item row="2" column="1">
-               <widget class="QLineEdit" name="LE_y_start"/>
+               <widget class="QDoubleSpinBox" name="GUI_y_start">
+                <property name="maximum">
+                 <double>12.000000000000000</double>
+                </property>
+               </widget>
               </item>
               <item row="1" column="2">
-               <widget class="QLineEdit" name="LE_x_stop"/>
+               <widget class="QDoubleSpinBox" name="GUI_x_stop">
+                <property name="maximum">
+                 <double>12.000000000000000</double>
+                </property>
+               </widget>
               </item>
-              <item row="2" column="3">
-               <widget class="QLineEdit" name="LE_y_step"/>
+              <item row="2" column="2">
+               <widget class="QDoubleSpinBox" name="GUI_y_stop">
+                <property name="maximum">
+                 <double>12.000000000000000</double>
+                </property>
+               </widget>
               </item>
               <item row="1" column="3">
-               <widget class="QLineEdit" name="LE_x_step"/>
+               <widget class="QDoubleSpinBox" name="GUI_x_step">
+                <property name="maximum">
+                 <double>12.000000000000000</double>
+                </property>
+                <property name="value">
+                 <double>0.100000000000000</double>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="3">
+               <widget class="QDoubleSpinBox" name="GUI_y_step">
+                <property name="maximum">
+                 <double>12.000000000000000</double>
+                </property>
+                <property name="value">
+                 <double>0.100000000000000</double>
+                </property>
+               </widget>
               </item>
              </layout>
             </widget>
@@ -169,7 +199,7 @@
                <x>30</x>
                <y>90</y>
                <width>371</width>
-               <height>44</height>
+               <height>46</height>
               </rect>
              </property>
              <layout class="QFormLayout" name="formLayout_3">
@@ -181,7 +211,11 @@
                </widget>
               </item>
               <item row="0" column="1">
-               <widget class="QLineEdit" name="LE_pmt_exposure_time_in_ms"/>
+               <widget class="QLineEdit" name="LE_pmt_exposure_time_in_ms">
+                <property name="text">
+                 <string>1</string>
+                </property>
+               </widget>
               </item>
               <item row="1" column="0" colspan="2">
                <widget class="QCheckBox" name="CB_auto_go_to_max">
@@ -218,7 +252,7 @@
                <x>30</x>
                <y>20</y>
                <width>361</width>
-               <height>81</height>
+               <height>90</height>
               </rect>
              </property>
              <layout class="QFormLayout" name="formLayout">
@@ -387,13 +421,6 @@
            <widget class="QPushButton" name="BTN_go_to_max">
             <property name="text">
              <string>Go to Max</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="BTN_stop_scanning">
-            <property name="text">
-             <string>Release FPGA</string>
             </property>
            </widget>
           </item>
@@ -832,6 +859,19 @@
     </property>
     <property name="text">
      <string>READ</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="BTN_stop_scanning">
+    <property name="geometry">
+     <rect>
+      <x>340</x>
+      <y>10</y>
+      <width>121</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Release FPGA</string>
     </property>
    </widget>
   </widget>

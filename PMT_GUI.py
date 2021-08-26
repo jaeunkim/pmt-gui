@@ -333,8 +333,10 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
     def SetStagePosition(self):
         x_pos = float(self.LBL_X_pos.text())
         y_pos = float(self.LBL_Y_pos.text())
+        # TODO disable read button
         self.x_motor.move_to_position(x_pos)
         self.y_motor.move_to_position(y_pos)
+        # TODO enable read button
         
     def ReadStagePosition(self):
         x_pos = self.x_motor.get_position()
@@ -472,6 +474,7 @@ class ScanningThread(QThread):
 
     def move_to_requested_position(self):
         self.x_motor.move_to_position(self.x_pos)
+        
         self.y_motor.move_to_position(self.y_pos)
     
     def stop_thread_and_clean_up_hardware(self, release_flag):

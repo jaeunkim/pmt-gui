@@ -137,10 +137,9 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         
     def start_scanning(self):
         # read and register scan settings
-        self.update_scan_range(float(self.LE_x_start.text()), float(self.LE_x_stop.text()), float(self.LE_x_step.text()),
-                                float(self.LE_y_start.text()), float(self.LE_y_stop.text()), float(self.LE_y_step.text()),
-                                float(self.LE_pmt_exposure_time_in_ms.text()), num_run = 50)
-
+        self.update_scan_range(self.GUI_x_start.value(), self.GUI_x_stop.value(), self.GUI_x_step.value(),
+                               self.GUI_y_start.value(), self.GUI_y_stop.value(), self.GUI_y_step.vaule(),
+                               float(self.LE_pmt_exposure_time_in_ms.text()), num_run = 50)
         # initiate scanning
         if not self.scanning_thread.running_flag:
             self.scanning_thread.running_flag = True
@@ -474,7 +473,7 @@ class ScanningThread(QThread):
                 my_count = self.pmt.PMT_count_measure()  # should be atomic
                 self.scan_todo_flag = False  # job done
                 self.scan_result.emit(self.x_pos, self.y_pos, self.exposure_time, my_count)
-           
+        
             self.mutex.unlock()
             print("unlocked")
             
@@ -503,7 +502,6 @@ class ScanningThread(QThread):
                 self.pmt = PMT(port = self.fpga_com_port)
                 print("Acquired PMT", self.pmt)
                 self.set_exposure_time(self.exposure_time, num_run = 50)
-             
         
     def clean_up_devices(self):
         if not self.pmt == None:
