@@ -370,8 +370,12 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
     def SetStagePosition(self):
         x_pos = float(self.LBL_X_pos.text())
         y_pos = float(self.LBL_Y_pos.text())
+        self.BTN_SET_pos.setText("Moving..")
+        self.BTN_READ_pos.setDisabled(True)
         self.x_motor.move_to_position(x_pos)
         self.y_motor.move_to_position(y_pos)
+        self.BTN_SET_pos.setText("SET")
+        self.BTN_READ_pos.setEnabled(False)
         
     def ReadStagePosition(self):
         x_pos = self.x_motor.get_position()
