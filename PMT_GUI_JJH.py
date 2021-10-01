@@ -19,8 +19,8 @@ import HardwareDefinition_SNU_v4_01 as hd
 
 ################# Importing Hardware APIs #######################
 from KDC101 import KDC101  # Thorlabs KDC101 Motor Controller
-from PMT_v3 import PMT
-# from DUMMY_PMT import PMT
+# from PMT_v3 import PMT
+from DUMMY_PMT import PMT
 
 ################ Importing GUI Dependencies #####################
 import os, time
@@ -54,11 +54,14 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         time.sleep(1)
         print("Cleaned hardwares.")
     
-    def __init__(self, window_title="", parent=None, config_file='EA109.ini'):
+    def __init__(self, window_title="", parent=None):
         QtWidgets.QMainWindow.__init__(self, parent)
         self.setupUi(self)
         self.setWindowTitle(window_title)
-        self.read_config(config_file)
+        
+        # Read config file
+        computer_name = os.getenv('COMPUTERNAME', 'defaultValue')
+        self.read_config("./config/"+computer_name+'.ini')
 
         # Plot
         self.toolbar, self.ax, self.canvas = self.create_canvas(self.image_viewer)
@@ -72,6 +75,9 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.BTN_pause_or_resume_scanning.clicked.connect(self.pause_or_resume_scanning)
         self.BTN_go_to_max.clicked.connect(self.go_to_max)
         self.BTN_scan_vicinity.clicked.connect(self.scan_vicinity)
+        self.BTN_apply_plot_settings.clicked.connect(self.show_img)
+        self.GUI_x_step.valueChanged.connect(self.update_gui_scan_settings_spinbox_stepsize)
+        self.GUI_y_step.valueChanged.connect(self.update_gui_scan_settings_spinbox_stepsize)
         
         # Internal 
         self.x_pos_list = []
@@ -85,7 +91,6 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.currently_rescanning = False  # true during gotomax operation
         self.save_file = str(pathlib.Path(__file__).parent.resolve()) + "/data/default.csv"
         self.LBL_save_file.setText("DEFAULT FILE: ./data/default.csv")
-        self.mutex = QMutex()
         
         # Setup: scanning thread
         self.scanning_thread = ScanningThread(x_motor_serno = self.x_motor_serno, y_motor_serno = self.y_motor_serno, fpga_com_port = self.fpga_com_port)
@@ -101,7 +106,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         
         # Get position of the stage and update scan settings accordingly
         self.ReadStagePosition()
-        self.update_gui_scan_info(float(self.LBL_X_pos.text()), float(self.LBL_Y_pos.text()), self.x_step, self.y_step)
+        self.initialize_gui_scan_settings(float(self.LBL_X_pos.text()), float(self.LBL_Y_pos.text()), self.config_x_step, self.config_y_step)
         self.PMT_thread = MyPMTThread(self.pmt)
         self.PMT_thread.pmt_result.connect(self.PlotPMTResult)
         self.PMT_counts_list = []
@@ -113,21 +118,28 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
     def read_config(self, config_file):
         config = configparser.ConfigParser()
         config.read(config_file)
-        self.x_motor_serno = ['motors']['x_serno']
-        self.y_motor_serno = ['motors']['y_serno']
-        self.fpga_com_port = ['fpga']['COM7']
-        self.fpga_dna = ['fpga']['dna']
-        self.x_step = ['gui']['x_step']
-        self.y_step = ['gui']['y_step']
+        self.x_motor_serno = config['motors']['x_serno']
+        self.y_motor_serno = config['motors']['y_serno']
+        self.fpga_com_port = config['fpga']['com_port']
+        self.fpga_dna = config['fpga']['dna']
+        self.config_x_step = float(config['gui']['x_step'])
+        self.config_y_step = float(config['gui']['y_step'])
     
-    def update_gui_scan_settings(self, x_pos, y_pos, x_step=0.1, y_step=0.1):
+    def update_gui_scan_settings_spinbox_stepsize(self):
+        x_step = self.GUI_x_step.value()
+        y_step = self.GUI_y_step.value()
+        
         self.GUI_x_start.setSingleStep(x_step)
         self.GUI_x_stop.setSingleStep(x_step)
+        
+        self.GUI_y_start.setSingleStep(y_step)
+        self.GUI_y_stop.setSingleStep(y_step)
+    
+    def initialize_gui_scan_settings(self, x_pos, y_pos, x_step=0.1, y_step=0.1):
         self.GUI_x_step.setValue(x_step)
-
-        self.GUI_y_start.setSingleStep(self.y_step)
-        self.GUI_y_stop.setSingleStep(self.y_step)
-        self.GUI_y_step.setValue(self.y_step)
+        self.GUI_y_step.setValue(y_step)
+        
+        self.update_gui_scan_settings_spinbox_stepsize()
         
         self.GUI_x_start.setValue(x_pos-x_step)
         self.GUI_x_stop.setValue(x_pos+x_step)
@@ -161,9 +173,10 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         print("updated scan range: ", self.x_pos_list, self.y_pos_list, self.pmt_exposure_time_in_ms)
         
     def start_scanning(self):
+        print("entered start_scanning")
         # read and register scan settings
         self.update_scan_range(self.GUI_x_start.value(), self.GUI_x_stop.value(), self.GUI_x_step.value(),
-                               self.GUI_y_start.value(), self.GUI_y_stop.value(), self.GUI_y_step.vaule(),
+                               self.GUI_y_start.value(), self.GUI_y_stop.value(), self.GUI_y_step.value(),
                                float(self.LE_pmt_exposure_time_in_ms.text()), num_run = 50)
         # initiate scanning
         if not self.scanning_thread.running_flag:
@@ -176,8 +189,6 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         initiates a scan request to the scanning thread
         calculates the scan position based on self.num_points_done
         """
-        self.mutex.lock()
-        
         x_pos = self.x_pos_list[self.num_points_done % self.x_num]
         y_pos = self.y_pos_list[self.num_points_done // self.x_num]
         
@@ -188,8 +199,6 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
             x_pos = self.x_pos_list[new_index]  # overwriting x_pos
             
         self.scan_request.emit(x_pos, y_pos, self.pmt_exposure_time_in_ms)
-        
-        self.mutex.unlock()
     
     def receive_result(self, x_pos, y_pos, exposure_time, pmt_count):
         self.mutex.lock()
@@ -213,6 +222,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         if self.num_points_done < self.x_num * self.y_num:  # if scanning not finished
             # check if scanning is not paused
             if self.scan_ongoing_flag:
+                print("about to send a new request!")
                 self.send_request()
         else:  # if scanning is done
             if self.CB_auto_go_to_max.isChecked():
@@ -271,7 +281,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         frame.setLayout(layout)
         
         return toolbar, ax, canvas
-    
+
     def show_img(self):
         # flip if necessary
         img = self.image.T
@@ -282,14 +292,16 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         
         # show the image and the indices
         self.ax.clear()
-        extent = np.array([self.x_pos_list[0]  - float(self.LE_x_step.text())/2,
-                           self.x_pos_list[-1] + float(self.LE_x_step.text())/2,
-                           self.y_pos_list[-1] + float(self.LE_y_step.text())/2,
-                           self.y_pos_list[0]  - float(self.LE_y_step.text())/2]).astype(np.float16)
+        extent = np.array([self.x_pos_list[0]  - self.GUI_x_step.value()/2,
+                           self.x_pos_list[-1] + self.GUI_x_step.value()/2,
+                           self.y_pos_list[-1] + self.GUI_y_step.value()/2,
+                           self.y_pos_list[0]  - self.GUI_y_step.value()]).astype(np.float16)
+        print("extent", extent)
         if not self.CB_auto_minmax.isChecked():
             my_vmin, my_vmax = float(self.plot_min.text()), float(self.plot_max.text())
         else:
             my_vmin, my_vmax = None, None
+        print("plot minmax settings", my_vmin, my_vmax)
         self.ax.imshow(img, extent = extent,  # TODO should the indices also flip when the image is flipped?
                         vmin = my_vmin, vmax = my_vmax)
         self.ax.set_xticks(self.x_pos_list)
@@ -331,10 +343,10 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
     def scan_vicinity(self):
         x_pos = self.x_motor.get_position()
         y_pos = self.y_motor.get_position()
-        x_step, y_step = float(self.LE_x_step.text()), float(self.LE_y_step.text())
+        x_step, y_step = self.GUI_x_step.value(), self.GUI_y_step.value()
          
         self.update_scan_range(x_pos - x_step, x_pos + x_step, x_step,
-                                y_pos - y_step, x_pos + y_step, y_step,
+                                y_pos - y_step, y_pos + y_step, y_step,
                                 float(self.LE_pmt_exposure_time_in_ms.text()))
         
         # initiate scanning
@@ -370,12 +382,14 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
     def SetStagePosition(self):
         x_pos = float(self.LBL_X_pos.text())
         y_pos = float(self.LBL_Y_pos.text())
+        print(x_pos, y_pos)
         self.BTN_SET_pos.setText("Moving..")
         self.BTN_READ_pos.setDisabled(True)
         self.x_motor.move_to_position(x_pos)
         self.y_motor.move_to_position(y_pos)
+        print("returned from motor.move_to_position")
         self.BTN_SET_pos.setText("SET")
-        self.BTN_READ_pos.setEnabled(False)
+        self.BTN_READ_pos.setEnabled(True)
         
     def ReadStagePosition(self):
         x_pos = self.x_motor.get_position()
@@ -492,7 +506,7 @@ class ScanningThread(QThread):
     def run(self):
         while self.running_flag:
             self.mutex.lock()
-            print('locked')
+            print("thread mutex locked")
             if not self.scan_todo_flag:  # no job to do
                 self.cond.wait(self.mutex)  # wait for a job to do
             else:  # there's a job to do
@@ -502,9 +516,10 @@ class ScanningThread(QThread):
                 my_count = self.pmt.PMT_count_measure()  # should be atomic
                 self.scan_todo_flag = False  # job done
                 self.scan_result.emit(self.x_pos, self.y_pos, self.exposure_time, my_count)
-        
+            
+            # memo: the program breaks without the following line
             self.mutex.unlock()
-            print("unlocked")
+            print("thread mutex unlocked")
             
     def register_request(self, x_pos, y_pos, exposure_time):
         self.x_pos = x_pos

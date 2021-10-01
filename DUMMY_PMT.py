@@ -17,11 +17,19 @@ class PMT():
         self.port = port
         
         self.cnt = 0
-        
+    
+    def setup_PMT_sp(self, 
+                     N_1us = 2,
+                     T_1us = 100-3-2,
+                     num_run = 50,
+                     ):
+        pass
+
     def PMT_count_measure(self):
         self.sequencer = DUMMY_SEQUENCER()
         self.cnt += 1
         return self.cnt
+
 
 
 class DUMMY_SEQUENCER():
