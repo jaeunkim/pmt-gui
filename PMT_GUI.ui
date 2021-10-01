@@ -7,19 +7,19 @@
     <x>0</x>
     <y>0</y>
     <width>891</width>
-    <height>620</height>
+    <height>750</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
     <width>891</width>
-    <height>620</height>
+    <height>750</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
     <width>891</width>
-    <height>650</height>
+    <height>750</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -30,21 +30,21 @@
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>30</y>
+      <y>20</y>
       <width>871</width>
-      <height>571</height>
+      <height>671</height>
      </rect>
     </property>
     <property name="minimumSize">
      <size>
       <width>871</width>
-      <height>571</height>
+      <height>671</height>
      </size>
     </property>
     <property name="maximumSize">
      <size>
       <width>871</width>
-      <height>571</height>
+      <height>671</height>
      </size>
     </property>
     <property name="currentIndex">
@@ -60,7 +60,7 @@
         <x>10</x>
         <y>10</y>
         <width>851</width>
-        <height>531</height>
+        <height>581</height>
        </rect>
       </property>
       <widget class="QWidget" name="horizontalLayoutWidget">
@@ -69,7 +69,7 @@
          <x>0</x>
          <y>0</y>
          <width>851</width>
-         <height>531</height>
+         <height>571</height>
         </rect>
        </property>
        <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,1">
@@ -196,9 +196,9 @@
             <widget class="QWidget" name="formLayoutWidget_2">
              <property name="geometry">
               <rect>
-               <x>30</x>
-               <y>90</y>
-               <width>371</width>
+               <x>20</x>
+               <y>110</y>
+               <width>381</width>
                <height>46</height>
               </rect>
              </property>
@@ -230,7 +230,7 @@
              <property name="geometry">
               <rect>
                <x>20</x>
-               <y>140</y>
+               <y>160</y>
                <width>381</width>
                <height>23</height>
               </rect>
