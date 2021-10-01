@@ -12,6 +12,6 @@ config['motors'] = {'x_serno' : "27002644",
 config['fpga'] = {'com_port' : "COM7",
                   'dna'      : "blah"}
 
-with open('EA109.ini', 'w') as configfile:
+with open('EC.ini', 'w') as configfile:
     config.write(configfile)
 '''
