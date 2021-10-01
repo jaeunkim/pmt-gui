@@ -19,8 +19,8 @@ import HardwareDefinition_SNU_v4_01 as hd
 
 ################# Importing Hardware APIs #######################
 from KDC101 import KDC101  # Thorlabs KDC101 Motor Controller
-from PMT_v3 import PMT
-# from DUMMY_PMT import PMT
+# from PMT_v3 import PMT
+from DUMMY_PMT import PMT
 
 ################ Importing GUI Dependencies #####################
 import os, time
@@ -58,6 +58,10 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         QtWidgets.QMainWindow.__init__(self, parent)
         self.setupUi(self)
         self.setWindowTitle(window_title)
+        
+        # Read config file
+        computer_name = os.getenv('COMPUTERNAME', 'defaultValue')
+        self.read_config("./config/"+computer_name+'.ini')
 
         # Plot
         self.toolbar, self.ax, self.canvas = self.create_canvas(self.image_viewer)
@@ -70,7 +74,10 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.BTN_stop_scanning.clicked.connect(self.stop_scanning)
         self.BTN_pause_or_resume_scanning.clicked.connect(self.pause_or_resume_scanning)
         self.BTN_go_to_max.clicked.connect(self.go_to_max)
-        
+        self.BTN_scan_vicinity.clicked.connect(self.scan_vicinity)
+        self.BTN_apply_plot_settings.clicked.connect(self.show_img)
+        self.GUI_x_step.valueChanged.connect(self.update_gui_scan_settings_spinbox_stepsize)
+        self.GUI_y_step.valueChanged.connect(self.update_gui_scan_settings_spinbox_stepsize)
         
         # Internal 
         self.x_pos_list = []
@@ -86,20 +93,20 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.LBL_save_file.setText("DEFAULT FILE: ./data/default.csv")
         
         # Setup: scanning thread
-        self.scanning_thread = ScanningThread(x_motor_serno = "27002644", y_motor_serno = "27002621", fpga_com_port = "COM7")
+        self.scanning_thread = ScanningThread(x_motor_serno = self.x_motor_serno, y_motor_serno = self.y_motor_serno, fpga_com_port = self.fpga_com_port)
+        #self.scanning_thread = ScanningThread(x_motor_serno = "27002644", y_motor_serno = "27002621", fpga_com_port = "COM7")
         self.x_motor = self.scanning_thread.x_motor
         self.y_motor = self.scanning_thread.y_motor
         self.pmt = self.scanning_thread.pmt
-        
         
         # self.scanning_thread = ScanningThread(x_motor_serno = "27001495", y_motor_serno = "27000481", fpga_com_port = "COM7")
         self.scanning_thread.scan_result.connect(self.receive_result)
         self.scan_request.connect(self.scanning_thread.register_request)
         self.scanning_thread.running_flag = False
         
-        # Get position of the stage and update
+        # Get position of the stage and update scan settings accordingly
         self.ReadStagePosition()
-        
+        self.initialize_gui_scan_settings(float(self.LBL_X_pos.text()), float(self.LBL_Y_pos.text()), self.config_x_step, self.config_y_step)
         self.PMT_thread = MyPMTThread(self.pmt)
         self.PMT_thread.pmt_result.connect(self.PlotPMTResult)
         self.PMT_counts_list = []
@@ -107,25 +114,55 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.PMT_num = 1
         self.PMT_vmin = 0
         self.PMT_vmax = 100
-            
+    
+    def read_config(self, config_file):
+        config = configparser.ConfigParser()
+        config.read(config_file)
+        self.x_motor_serno = config['motors']['x_serno']
+        self.y_motor_serno = config['motors']['y_serno']
+        self.fpga_com_port = config['fpga']['com_port']
+        self.fpga_dna = config['fpga']['dna']
+        self.config_x_step = float(config['gui']['x_step'])
+        self.config_y_step = float(config['gui']['y_step'])
+    
+    def update_gui_scan_settings_spinbox_stepsize(self):
+        x_step = self.GUI_x_step.value()
+        y_step = self.GUI_y_step.value()
+        
+        self.GUI_x_start.setSingleStep(x_step)
+        self.GUI_x_stop.setSingleStep(x_step)
+        
+        self.GUI_y_start.setSingleStep(y_step)
+        self.GUI_y_stop.setSingleStep(y_step)
+    
+    def initialize_gui_scan_settings(self, x_pos, y_pos, x_step=0.1, y_step=0.1):
+        self.GUI_x_step.setValue(x_step)
+        self.GUI_y_step.setValue(y_step)
+        
+        self.update_gui_scan_settings_spinbox_stepsize()
+        
+        self.GUI_x_start.setValue(x_pos-x_step)
+        self.GUI_x_stop.setValue(x_pos+x_step)
+        self.GUI_y_start.setValue(y_pos-y_step)
+        self.GUI_y_stop.setValue(y_pos+y_step)
+
     def update_progress_label(self):
         self.LBL_latest_count.setText(str(self.latest_count))
         self.LBL_points_done.setText(str(self.num_points_done))
+    
+    def update_scan_range(self, x_start, x_stop, x_step, y_start, y_stop, y_step, pmt_exposure_time_in_ms, num_run = 50):
+        padding = 0.00001  # some small value to include the stop value in the scan range
         
-    def start_scanning(self):
-        # read scan settings
-        self.x_pos_list = np.arange(float(self.LE_x_start.text()), 
-                                       float(self.LE_x_stop.text())+float(self.LE_x_step.text()), float(self.LE_x_step.text()))
-        self.y_pos_list = np.arange(float(self.LE_y_start.text()), 
-                                       float(self.LE_y_stop.text())+float(self.LE_y_step.text()), float(self.LE_y_step.text()))
-        self.pmt_exposure_time_in_ms = float(self.LE_pmt_exposure_time_in_ms.text())
-        self.scanning_thread.set_exposure_time(self.pmt_exposure_time_in_ms, num_run = 50)
-        print("scanning for", self.x_pos_list, self.y_pos_list, self.pmt_exposure_time_in_ms)
-        
-        # numpy array to store scanned image
+        # update the variables related to the scan range
+        self.x_pos_list = np.arange(x_start, x_stop + padding, x_step)
+        self.y_pos_list = np.arange(y_start, y_stop + padding, y_step)
         self.x_num = len(self.x_pos_list)
         self.y_num = len(self.y_pos_list)
         self.image = np.zeros((self.x_num, self.y_num))
+        
+        # update PMT settings
+        self.pmt_exposure_time_in_ms = pmt_exposure_time_in_ms
+        self.scanning_thread.set_exposure_time(self.pmt_exposure_time_in_ms, num_run = num_run)
         
         # update scan_progress labels
         self.num_points_done = 0
@@ -133,6 +170,14 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         self.update_progress_label()
         self.LBL_total_points.setText(str(self.x_num * self.y_num))
         
+        print("updated scan range: ", self.x_pos_list, self.y_pos_list, self.pmt_exposure_time_in_ms)
+        
+    def start_scanning(self):
+        print("entered start_scanning")
+        # read and register scan settings
+        self.update_scan_range(self.GUI_x_start.value(), self.GUI_x_stop.value(), self.GUI_x_step.value(),
+                               self.GUI_y_start.value(), self.GUI_y_stop.value(), self.GUI_y_step.value(),
+                               float(self.LE_pmt_exposure_time_in_ms.text()), num_run = 50)
         # initiate scanning
         if not self.scanning_thread.running_flag:
             self.scanning_thread.running_flag = True
@@ -177,6 +222,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         if self.num_points_done < self.x_num * self.y_num:  # if scanning not finished
             # check if scanning is not paused
             if self.scan_ongoing_flag:
+                print("about to send a new request!")
                 self.send_request()
         else:  # if scanning is done
             if self.CB_auto_go_to_max.isChecked():
@@ -235,24 +281,29 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         frame.setLayout(layout)
         
         return toolbar, ax, canvas
-    
+
     def show_img(self):
-        # if self.flip_horizontally_cbox.isChecked():
-        #     img = np.flip(img, 1)
-        # if self.flip_vertically_cbox.isChecked():
-        #     img = np.flip(img, 0)
+        # flip if necessary
+        img = self.image.T
+        if self.CB_flip_horizontally.isChecked():
+            img = np.flip(img, 1)
+        if self.CB_flip_vertically.isChecked():
+            img = np.flip(img, 0)
         
-        #TODO let user choose vmin and vmax (where?)
-        #self.ax.imshow(img, vmin=self.vmin, vmax=self.vmax)
+        # show the image and the indices
         self.ax.clear()
-        extent = np.array([self.x_pos_list[0]  - float(self.LE_x_step.text())/2,
-                           self.x_pos_list[-1] + float(self.LE_x_step.text())/2,
-                           self.y_pos_list[-1] + float(self.LE_y_step.text())/2,
-                           self.y_pos_list[0]  - float(self.LE_y_step.text())/2]).astype(np.float16)
-        
-        
-        self.ax.imshow(self.image.T, extent = extent)
-        
+        extent = np.array([self.x_pos_list[0]  - self.GUI_x_step.value()/2,
+                           self.x_pos_list[-1] + self.GUI_x_step.value()/2,
+                           self.y_pos_list[-1] + self.GUI_y_step.value()/2,
+                           self.y_pos_list[0]  - self.GUI_y_step.value()]).astype(np.float16)
+        print("extent", extent)
+        if not self.CB_auto_minmax.isChecked():
+            my_vmin, my_vmax = float(self.plot_min.text()), float(self.plot_max.text())
+        else:
+            my_vmin, my_vmax = None, None
+        print("plot minmax settings", my_vmin, my_vmax)
+        self.ax.imshow(img, extent = extent,  # TODO should the indices also flip when the image is flipped?
+                        vmin = my_vmin, vmax = my_vmax)
         self.ax.set_xticks(self.x_pos_list)
         self.ax.set_yticks(self.y_pos_list)
         
@@ -274,38 +325,36 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         
         # ver.2: rescan range may extend outside the original scan range. I think this makes more sense
         max_x_pos, max_y_pos = self.x_pos_list[max_x_index], self.y_pos_list[max_y_index]
-
-        x_step, y_step = float(self.LE_x_step.text()), float(self.LE_y_step.text())
-        rescan_x_pos_list = np.arange(max_x_pos - self.gotomax_rescan_radius*x_step, max_x_pos + self.gotomax_rescan_radius*x_step + 0.00001, x_step)  # 0.00001 to include stop value
-        rescan_y_pos_list = np.arange(max_y_pos - self.gotomax_rescan_radius*y_step, max_y_pos + self.gotomax_rescan_radius*y_step + 0.00001, y_step)
-        print("GOTOMAX", max_x_pos, max_y_pos, self.LE_x_step.text())
-        self.x_pos_list = rescan_x_pos_list
-        self.y_pos_list = rescan_y_pos_list
-
-        # start rescanning
-        self.currently_rescanning = True
-        self.x_pos_list = rescan_x_pos_list
-        self.y_pos_list = rescan_y_pos_list
-        self.pmt_exposure_time_in_ms = float(self.LE_pmt_exposure_time_in_ms.text())  # maybe the user wants to update exposure time
-        print("REscanning for", self.x_pos_list, self.y_pos_list, self.pmt_exposure_time_in_ms)
+        x_step, y_step = float(self.LE_x_step.text()), float(self.LE_y_step.text()) 
+        x_rescan_radius = self.gotomax_rescan_radius * x_step
+        y_rescan_radius = self.gotomax_rescan_radius * y_step
         
-        # numpy array to store scanned image
-        self.x_num = len(self.x_pos_list)
-        self.y_num = len(self.y_pos_list)
-        self.image = np.zeros((self.x_num, self.y_num))
-        
-        # update scan_progress labels
-        self.num_points_done = 0
-        self.latest_count = 0
-        self.update_progress_label()
-        self.LBL_total_points.setText(str(self.x_num * self.y_num))
+        self.update_scan_range(max_x_pos - x_rescan_radius, max_x_pos + x_rescan_radius, x_step,
+                                max_y_pos - y_rescan_radius, max_y_pos + y_rescan_radius, y_step,
+                                float(self.LE_pmt_exposure_time_in_ms.text()))
+                                
+        # initiate scanning
+        self.currently_rescanning = True  # rescanning mode (to avoid recursively calling gotomax() forever)
+        if not self.scanning_thread.running_flag:
+            self.scanning_thread.running_flag = True
+            self.scanning_thread.start()
+        self.send_request()
+    
+    def scan_vicinity(self):
+        x_pos = self.x_motor.get_position()
+        y_pos = self.y_motor.get_position()
+        x_step, y_step = self.GUI_x_step.value(), self.GUI_y_step.value()
+         
+        self.update_scan_range(x_pos - x_step, x_pos + x_step, x_step,
+                                y_pos - y_step, y_pos + y_step, y_step,
+                                float(self.LE_pmt_exposure_time_in_ms.text()))
         
         # initiate scanning
         if not self.scanning_thread.running_flag:
             self.scanning_thread.running_flag = True
             self.scanning_thread.start()
         self.send_request()
-    
+        
     def pause_or_resume_scanning(self):
         print("entered pause_or_resume_scanning()")
         if self.scan_ongoing_flag:  # scanning -> pause
@@ -325,18 +374,22 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
             release_flag = False
             self.BTN_stop_scanning.setText("Release FPGA")
             print("Snatched FPGA")
-        self.scanning_thread.stop_thread_and_clean_up_hardware()
-        
-        
 
+        self.scanning_thread.stop_thread_and_clean_up_hardware(release_flag)
+        
     #%% JJH added
+    # Jaeun's comment: these methods should be in a separate "PMT count viewer" class.
     def SetStagePosition(self):
         x_pos = float(self.LBL_X_pos.text())
         y_pos = float(self.LBL_Y_pos.text())
-        # TODO disable read button
+        print(x_pos, y_pos)
+        self.BTN_SET_pos.setText("Moving..")
+        self.BTN_READ_pos.setDisabled(True)
         self.x_motor.move_to_position(x_pos)
         self.y_motor.move_to_position(y_pos)
-        # TODO enable read button
+        print("returned from motor.move_to_position")
+        self.BTN_SET_pos.setText("SET")
+        self.BTN_READ_pos.setEnabled(True)
         
     def ReadStagePosition(self):
         x_pos = self.x_motor.get_position()
@@ -453,16 +506,20 @@ class ScanningThread(QThread):
     def run(self):
         while self.running_flag:
             self.mutex.lock()
-            
+            print("thread mutex locked")
             if not self.scan_todo_flag:  # no job to do
                 self.cond.wait(self.mutex)  # wait for a job to do
             else:  # there's a job to do
+                print("Going to the requested position")
                 self.move_to_requested_position()  # should be atomic
+                print("Getting pmt count")
                 my_count = self.pmt.PMT_count_measure()  # should be atomic
                 self.scan_todo_flag = False  # job done
                 self.scan_result.emit(self.x_pos, self.y_pos, self.exposure_time, my_count)
-           
+            
+            # memo: the program breaks without the following line
             self.mutex.unlock()
+            print("thread mutex unlocked")
             
     def register_request(self, x_pos, y_pos, exposure_time):
         self.x_pos = x_pos
@@ -474,18 +531,21 @@ class ScanningThread(QThread):
 
     def move_to_requested_position(self):
         self.x_motor.move_to_position(self.x_pos)
-        
         self.y_motor.move_to_position(self.y_pos)
     
     def stop_thread_and_clean_up_hardware(self, release_flag):
         self.running_flag = False
         
+        print(release_flag)
+
         if release_flag: # 
             self.pmt.sequencer.close() # Release FPGA
             self.pmt = None
         else:
-            self.pmt = PMT(port = self.fpga_com_port)
-               
+            if not self.pmt:
+                self.pmt = PMT(port = self.fpga_com_port)
+                print("Acquired PMT", self.pmt)
+                self.set_exposure_time(self.exposure_time, num_run = 50)
         
     def clean_up_devices(self):
         if not self.pmt == None:
