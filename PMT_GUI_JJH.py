@@ -11,16 +11,16 @@ PMT and KDC101 files should be in the same folder as this program
 
 ################ Importing Sequencer Programs ###################
 import sys
-sys.path.append("Q://Experiment_Scripts/Chamber_4G_SNU/SecularFreq/")
+sys.path.append("Q://Experiment_Scripts/GUI_Control_Program/RemoteEntangle/Sequencer/Sequencer Library")
 from SequencerProgram_v1_07 import SequencerProgram, reg
 import SequencerUtility_v1_01 as su
 from ArtyS7_v1_02 import ArtyS7
-import HardwareDefinition_SNU_v4_01 as hd
+import HardwareDefinition_EA as hd
 
 ################# Importing Hardware APIs #######################
 from KDC101 import KDC101  # Thorlabs KDC101 Motor Controller
-# from PMT_v3 import PMT
-from DUMMY_PMT import PMT
+from PMT_v3 import PMT
+# from DUMMY_PMT import PMT
 
 ################ Importing GUI Dependencies #####################
 import os, time
@@ -325,7 +325,7 @@ class PMT_GUI(QtWidgets.QMainWindow, Ui_Form):
         
         # ver.2: rescan range may extend outside the original scan range. I think this makes more sense
         max_x_pos, max_y_pos = self.x_pos_list[max_x_index], self.y_pos_list[max_y_index]
-        x_step, y_step = float(self.LE_x_step.text()), float(self.LE_y_step.text()) 
+        x_step, y_step = self.GUI_x_step.value(), self.GUI_y_step.value() 
         x_rescan_radius = self.gotomax_rescan_radius * x_step
         y_rescan_radius = self.gotomax_rescan_radius * y_step
         
